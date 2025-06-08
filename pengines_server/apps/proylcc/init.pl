@@ -7,13 +7,22 @@
  * Grid es una lista con los números que conforman la grilla, y NumOfColumns es la cantidad de columnas, 
  * determinando las dimensiones de la misma.
  */
-
+/* 
 init([
 	4,2,8,64,32,
 	2,-,-,4,16,
 	-,-,-,-,2,
 	-,-,-,-,16,
 	-,-,-,-,2,
+	-,-,-,-,-,
+	-,-,-,-,-
+], 5). */
+init([
+	2,2,2,2,2,
+	-,-,-,-,-,
+	-,-,-,-,-,
+	-,-,-,-,-,
+	-,-,-,-,-,
 	-,-,-,-,-,
 	-,-,-,-,-
 ], 5).

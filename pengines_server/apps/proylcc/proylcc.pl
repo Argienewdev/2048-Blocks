@@ -4,6 +4,20 @@
 		shoot/5	
 	]).
 
+/*
+Predicados auxiliares:
+	-Reemplazar un elemento en cierto indice por otro, produciendo una nueva lista
+*/
+
+% conditional_replace_at_index(+Index, +List, +OldElement, +NewElement, -ResultList)
+% Succeeds only if OldElement is at Index; replaces it with NewElement (One based).
+
+conditional_replace_at_index(1, [OldElement|Tail], OldElement, NewElement, [NewElement|Tail]).
+conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|ResultTail]) :-
+    Index > 1,
+    NewIndex is Index - 1,
+    conditional_replace_at_index(NewIndex, Tail, OldElement, NewElement, ResultTail).
+
 /**
  * randomBlock(+Grid, -Block)
  */
@@ -22,238 +36,32 @@ randomBlock(_Grid, 4).
 
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
- * RGrids es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
+ * RGrid es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
  * en la grilla Grid, con número de columnas NumOfColumns. El número 0 representa que la celda está vacía. 
+ *shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)
+ * La consulta da un bloque, en una columna, dada una grilla, de n columnas, debe retornar una lista de grillas
+ * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
+ * a esa ultima pide un bloque random para seguir jugando.
  */
 
-shoot(2, 1, 
-	[
-		4,2,8,64,32,
-		2,-,-,4,16,
-		-,-,-,-,2,
-		-,-,-,-,16,
-		-,-,-,-,2,
-		-,-,-,-,-,
-		-,-,-,-,-
-	], 5,
-	[
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			2,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,2,8,64,32,
-			4,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(4)]),
-		effect([
-			8,2,8,64,32,
-			-,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(8)])
-	]
-).
+shoot(Block, Lane, Grid, Col, [effect(FallGrid, [])]) :-
+	block_fall(Block, Lane, Grid, 0, Col, FallGrid).
+	
 
-shoot(2, 2, 
-	[
-		4,2,8,64,32,
-		2,-,-,4,16,
-		-,-,-,-,2,
-		-,-,-,-,16,
-		-,-,-,-,2,
-		-,-,-,-,-,
-		-,-,-,-,-
-	], 5,
-	[
-		effect([
-			4,2,8,64,32,
-			2,2,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,-,8,64,32,
-			-,8,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(8)]),
-		effect([
-			4,8,8,64,32,
-			-,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,16,-,64,32,
-			-,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(16)])
-	]
-).
+%Caso base (final): Se verifica la ultima fila y se inserta el elemento
+block_fall(Block, Lane, Grid, DRows, Col, FallGrid) :-
+	length(Grid, GridLength),
+	Rows is (GridLength / Col) - 1,
+	DRows =:= Rows,
+	Index is ((Col * DRows) + Lane),
+	conditional_replace_at_index(Index, Grid, -, Block, FallGrid), !.
 
-shoot(2, 3, 
-	[
-		4,2,8,64,32,
-		2,-,-,4,16,
-		-,-,-,-,2,
-		-,-,-,-,16,
-		-,-,-,-,2,
-		-,-,-,-,-,
-		-,-,-,-,-
-	], 5,
-	[
-		effect([
-			4,2,8,64,32,
-			2,-,2,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [])
-	]
-).
+%Caso recursivo: Se verifica la primera fila y se inserta el elemento si se puede
+block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
+	Index is ((Col * Row) + Lane),
+	conditional_replace_at_index(Index, Grid, -, Block, FallGrid), !.
 
-shoot(2, 4, 
-	[
-		4,2,8,64,32,
-		2,-,-,4,16,
-		-,-,-,-,2,
-		-,-,-,-,16,
-		-,-,-,-,2,
-		-,-,-,-,-,
-		-,-,-,-,-
-	], 5,
-	[
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			-,-,-,2,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			-,-,-,4,-,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(4)]),
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			-,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,2,8,64,32,
-			2,-,-,8,32,
-			-,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(8), newBlock(32)]),
-		effect([
-			4,2,8,64,64,
-			2,-,-,8,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(64)]),		
-		effect([
-			4,2,8,-,128,
-			2,-,-,8,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], []),			
-		effect([
-			4,2,8,8,128,
-			2,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(128)]),			
-		effect([
-			4,2,-,16,128,
-			2,-,-,-,2,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(16)])
-	]
-).
-
-shoot(2, 5, 
-	[
-		4,2,8,64,32,
-		2,-,-,4,16,
-		-,-,-,-,2,
-		-,-,-,-,16,
-		-,-,-,-,2,
-		-,-,-,-,-,
-		-,-,-,-,-
-	], 5,
-	[
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,2,
-			-,-,-,-,2,
-			-,-,-,-,-
-		], []),
-		effect([
-			4,2,8,64,32,
-			2,-,-,4,16,
-			-,-,-,-,2,
-			-,-,-,-,16,
-			-,-,-,-,4,
-			-,-,-,-,-,
-			-,-,-,-,-
-		], [newBlock(4)])
-	]
-).
+%Sino, se verifica la proxima fila hasta llegar al limite (caso base)
+block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
+	IRow is (Row + 1),
+	block_fall(Block, Lane, Grid, IRow, Col, FallGrid).
