@@ -38,7 +38,9 @@ randomBlock(_Grid, 4).
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
  * RGrid es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
  * en la grilla Grid, con número de columnas NumOfColumns. El número 0 representa que la celda está vacía. 
+ * 
  *shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)
+
  * La consulta da un bloque, en una columna, dada una grilla, de n columnas, debe retornar una lista de grillas
  * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
  * a esa ultima pide un bloque random para seguir jugando.
@@ -50,11 +52,18 @@ shoot(Block, Lane, Grid, Col, [effect(FallGrid, [])]) :-
 
 %Caso base (final): Se verifica la ultima fila y se inserta el elemento
 block_fall(Block, Lane, Grid, DRows, Col, FallGrid) :-
-	length(Grid, GridLength),
+	length(Grid, GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRows =:= Rows,
 	Index is ((Col * DRows) + Lane),
 	conditional_replace_at_index(Index, Grid, -, Block, FallGrid), !.
+
+%Caso LANE ocupada completamente
+block_fall(_Block, _Lane, Grid, DRows, Col, Grid) :-
+	length(Grid, GridLength), 
+	Rows is (GridLength / Col) - 1,
+	DRows =:= Rows,
+	!.
 
 %Caso recursivo: Se verifica la primera fila y se inserta el elemento si se puede
 block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
@@ -65,3 +74,4 @@ block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
 block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
 	IRow is (Row + 1),
 	block_fall(Block, Lane, Grid, IRow, Col, FallGrid).
+
