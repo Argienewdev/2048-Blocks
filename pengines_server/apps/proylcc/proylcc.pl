@@ -22,6 +22,8 @@ conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|R
  * randomBlock(+Grid, -Block)
  */
 
+%Test comment
+
 randomBlock([
 	4,2,8,64,32,
 	2,-,-,4,16,
