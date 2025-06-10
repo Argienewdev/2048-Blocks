@@ -47,11 +47,10 @@ randomBlock(_Grid, 4).
  */
 
 shoot(Block, Lane, Grid, Col, [effect(FallGrid, [])]) :-
-	block_fall(Block, Lane, Grid, 0, Col, FallGrid).
-	
+	block_insert(Block, Lane, Grid, 0, Col, FallGrid).
 
 %Caso base (final): Se verifica la ultima fila y se inserta el elemento
-block_fall(Block, Lane, Grid, DRows, Col, FallGrid) :-
+block_insert(Block, Lane, Grid, DRows, Col, FallGrid) :-
 	length(Grid, GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRows =:= Rows,
@@ -59,19 +58,18 @@ block_fall(Block, Lane, Grid, DRows, Col, FallGrid) :-
 	conditional_replace_at_index(Index, Grid, -, Block, FallGrid), !.
 
 %Caso LANE ocupada completamente
-block_fall(_Block, _Lane, Grid, DRows, Col, Grid) :-
+block_insert(_Block, _Lane, Grid, DRows, Col, Grid) :-
 	length(Grid, GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRows =:= Rows,
 	!.
 
 %Caso recursivo: Se verifica la primera fila y se inserta el elemento si se puede
-block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
+block_insert(Block, Lane, Grid, Row, Col, FallGrid) :-
 	Index is ((Col * Row) + Lane),
 	conditional_replace_at_index(Index, Grid, -, Block, FallGrid), !.
 
 %Sino, se verifica la proxima fila hasta llegar al limite (caso base)
-block_fall(Block, Lane, Grid, Row, Col, FallGrid) :-
+block_insert(Block, Lane, Grid, Row, Col, FallGrid) :-
 	IRow is (Row + 1),
-	block_fall(Block, Lane, Grid, IRow, Col, FallGrid).
-
+	block_insert(Block, Lane, Grid, IRow, Col, FallGrid).
