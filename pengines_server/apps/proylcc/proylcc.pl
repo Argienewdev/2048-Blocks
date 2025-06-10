@@ -3,7 +3,7 @@
 		randomBlock/2,
 		shoot/5	
 	]).
-
+:- use_module(library(lists)).
 /*
 Predicados auxiliares:
 	-Reemplazar un elemento en cierto indice por otro, produciendo una nueva lista
@@ -11,6 +11,20 @@ Predicados auxiliares:
 
 % conditional_replace_at_index(+Index, +List, +OldElement, +NewElement, -ResultList)
 % Succeeds only if OldElement is at Index; replaces it with NewElement (One based).
+
+%retorna el valor mas grande de la grilla y tambien el menor, con un predicado de prolog de la libreria lists
+%excluyo todos los guiones de la grilla y retorno una lista de numeros.
+min_max_grid_values(Grid, Min, Max):- exclude(es_guion,Grid, Numeros), min_list(Numeros, Min), max_list(Numeros, Max).
+
+es_guion(X) :- X == '-'.
+
+es_potencia_de_dos(1).  % 2^0 = 1 es potencia de dos
+es_potencia_de_dos(N) :-
+    integer(N),
+    N > 1,
+    0 is N mod 2,
+    N2 is N // 2,
+    es_potencia_de_dos(N2).
 
 conditional_replace_at_index(1, [OldElement|Tail], OldElement, NewElement, [NewElement|Tail]).
 conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|ResultTail]) :-
@@ -20,7 +34,7 @@ conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|R
 
 /**
  * randomBlock(+Grid, -Block)
- */
+
 
 randomBlock([
 	4,2,8,64,32,
@@ -30,9 +44,19 @@ randomBlock([
 	-,-,-,-,2,
 	-,-,-,-,-,
 	-,-,-,-,-
-], 2).
-
-randomBlock(_Grid, 4).
+], Block):- min_max_grid_values([
+	4,2,8,64,32,
+	2,-,-,4,16,
+	-,-,-,-,2,
+	-,-,-,-,16,
+	-,-,-,-,2,
+	-,-,-,-,-,
+	-,-,-,-,-
+], Min, Max), random_between(Min, Max, Block).
+ */
+randomBlock(Grid, Block) :- min_max_grid_values(Grid, Min, Max), findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), random_member(Block, Potencias).
+%encuentra el mayor y el menor, recorre todos los valores entre el minimo y el maximo, si se cumple que es potencia de dos, lo agrega a la lista de Potencias,
+% luego asigna a Block un valor random de la lista de potencias
 
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
