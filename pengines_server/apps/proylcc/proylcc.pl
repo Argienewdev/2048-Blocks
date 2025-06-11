@@ -11,13 +11,24 @@ Predicados auxiliares:
 
 % conditional_replace_at_index(+Index, +List, +OldElement, +NewElement, -ResultList)
 % Succeeds only if OldElement is at Index; replaces it with NewElement (One based).
+conditional_replace_at_index(1, [OldElement|Tail], OldElement, NewElement, [NewElement|Tail]).
+conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|ResultTail]) :-
+    Index > 1,
+    NewIndex is Index - 1,
+    conditional_replace_at_index(NewIndex, Tail, OldElement, NewElement, ResultTail).
+
 
 %retorna el valor mas grande de la grilla y tambien el menor, con un predicado de prolog de la libreria lists
 %excluyo todos los guiones de la grilla y retorno una lista de numeros.
-min_max_grid_values(Grid, Min, Max):- exclude(es_guion,Grid, Numeros), min_list(Numeros, Min), max_list(Numeros, Max).
+min_max_grid_values(Grid, Min, Max):- 
+	exclude(es_guion,Grid, Numeros), 
+	min_list(Numeros, Min), 
+	max_list(Numeros, Max).
 
-es_guion(X) :- X == '-'.
 
+es_guion('-').
+
+%Retorna true si se trata de una potencia de 2
 es_potencia_de_dos(1).  % 2^0 = 1 es potencia de dos
 es_potencia_de_dos(N) :-
     integer(N),
@@ -26,11 +37,6 @@ es_potencia_de_dos(N) :-
     N2 is N // 2,
     es_potencia_de_dos(N2).
 
-conditional_replace_at_index(1, [OldElement|Tail], OldElement, NewElement, [NewElement|Tail]).
-conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|ResultTail]) :-
-    Index > 1,
-    NewIndex is Index - 1,
-    conditional_replace_at_index(NewIndex, Tail, OldElement, NewElement, ResultTail).
 
 /**
  * randomBlock(+Grid, -Block)
@@ -54,16 +60,26 @@ randomBlock([
 	-,-,-,-,-
 ], Min, Max), random_between(Min, Max, Block).
  */
-randomBlock(Grid, Block) :- min_max_grid_values(Grid, Min, Max), findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), random_member(Block, Potencias).
 %encuentra el mayor y el menor, recorre todos los valores entre el minimo y el maximo, si se cumple que es potencia de dos, lo agrega a la lista de Potencias,
 % luego asigna a Block un valor random de la lista de potencias
+randomBlock(Grid, Block) :- 
+	min_max_grid_values(Grid, Min, Max), 
+	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
+	random_member(Block, Potencias).
 
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
  * RGrid es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
  * en la grilla Grid, con número de columnas NumOfColumns. El número 0 representa que la celda está vacía. 
  * 
- *shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)
+ *shoot(${shootBlock}, 
+ 		${lane}, 
+		${gridS}, 
+		${numOfColumns},  
+		Effects), 
+		last(Effects, effect(RGrid,_)), 
+		
+		randomBlock(RGrid, Block)
 
  * La consulta da un bloque, en una columna, dada una grilla, de n columnas, debe retornar una lista de grillas
  * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
