@@ -7,7 +7,10 @@
 /*
 DUDAS:
 	-En el caso de que una LANE este completamente ocupada, debemos contemplar
-	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura entre los bloques
+	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura 
+	entre los bloques
+	-Como se sigue el patron de random blocks y remover bloques una vez se superan
+	los valores de la tabla?
 */
 
 %Predicados auxiliares:
