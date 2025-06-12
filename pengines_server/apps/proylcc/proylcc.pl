@@ -9,8 +9,6 @@ DUDAS:
 	-En el caso de que una LANE este completamente ocupada, debemos contemplar
 	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura 
 	entre los bloques
-	-Como se sigue el patron de random blocks y remover bloques una vez se superan
-	los valores de la tabla?
 */
 
 %Predicados auxiliares:
@@ -65,6 +63,7 @@ es_potencia_de_dos(N) :-
 randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego
 En realidad:
 El predicado elige un numero aleatorio potencia de dos entre el numero mas chico y mas grande de la grilla
+
 TODO: Seguir las reglas de generacion dadas en github
 
 Máximo de la Grilla		|	Rango			|	Observación
@@ -78,6 +77,9 @@ Máximo de la Grilla		|	Rango			|	Observación
 4096, 8192				|	16 a 512		|	Se retira el 8
 16k						|	32 a 1024		|	Se retira el 16
 ...						|	...				|	...
+
+De aqui en adelante, cada vez que se desbloquee un numero se retira el mas chico de la grilla y 
+el minimo y maximo del "Rango" se duplican.
 
 */
 
@@ -106,39 +108,42 @@ randomBlock(Grid, Block) :-
  */
 
 shoot(Block, Lane, Grid, Col, Effects) :-
-	block_insert(Block, Lane, Grid, 0, Col, InsertGrid),
+	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
 	block_fall(InsertGrid, Col, GravityGrid),
 	append([effect(InsertGrid, [])], [effect(GravityGrid, [])], Effects).
 
 /*
-Block insert se encarga de insertar el bloque recien disparado en la posicion correspondiente
+Block insert se encarga de insertar el bloque recien disparado en la posicion correspondiente y
+retornar el indice (en base 0) donde se insertó (-1 es no insertado).
 Caso base (final): Se verifica la ultima fila y se inserta el elemento
 Caso LANE ocupada completamente: Retorna la misma grilla sin cambios (Problema: Random block actúa)
 Caso recursivo 1: Se verifica la primera fila y se inserta el elemento si se puede
 Caso recursivo 2: Se verifica la proxima fila hasta llegar al limite (caso base)
 */
 
-block_insert(Block, Lane, Grid, DRow, Col, InsertGrid) :-
+block_insert(Block, Lane, Grid, DRow, Col, InsertGrid, InsertIndex) :-
 	%DRow: "Diminished Row" o "Fila disminuida" hace referencia a la anteultima fila
 	length(Grid, GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRow =:= Rows,
 	Index is ((Col * DRow) + Lane),
-	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid), !.
+	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid),
+	InsertIndex is Index - 1, !.
 
-block_insert(_Block, _Lane, Grid, DRow, Col, [effect(Grid, [])]) :-
+block_insert(_Block, _Lane, Grid, DRow, Col, Grid, -1) :-
 	length(Grid, GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRow =:= Rows,
 	!.
 
-block_insert(Block, Lane, Grid, Row, Col, InsertGrid) :-
+block_insert(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 	Index is ((Col * Row) + Lane),
-	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid), !.
+	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid),
+	InsertIndex is Index - 1, !.
 
-block_insert(Block, Lane, Grid, Row, Col, InsertGrid) :-
+block_insert(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 	NextRow is (Row + 1),
-	block_insert(Block, Lane, Grid, NextRow, Col, InsertGrid).
+	block_insert(Block, Lane, Grid, NextRow, Col, InsertGrid, InsertIndex).
 
 /*
 Block_fall implementa la gravedad, la cual hace que los bloques caigan luego de combinaciones
@@ -231,3 +236,21 @@ reinsert_column(GridIn, ColIndex, NumCols, Row, [Elem | Rest], GridOut) :-
     replace_at_index(GridIn, Index, Elem, GridNext),
     NextRow is Row + 1,
     reinsert_column(GridNext, ColIndex, NumCols, NextRow, Rest, GridOut).
+
+/*
+Logica para fusiones:
+	Nuevo valor: 
+		Se basa en la cantidad de bloques con los que se fusiona.
+		El resultado sera el bloque duplicado tantas veces como bloques
+		con los que se fusiono.
+		Ej1.
+			se dispara un 2 contra 3 bloques numero 2. El numero 2 se duplica 3 veces por lo que resulta 16
+		Ej2.
+			se dispara un 4 contra 2 bloques numero 4. El numero 4 se duplica 2 veces por lo que resulta 16
+		Formula: bloque x 2^[cantidad de bloques con los que se fusiona]
+	Posicion final de fusion:
+		Para cualquier etapa:
+			-Si solo puede fusionarse con un bloque y es el de arriba entonces la fusion culmina en la posicion de arriba.
+			-Si hay posibilidad de fusionar mas de 2 bloques, se hace y culmina en el centro de la fusion.
+			-En cualquier otro caso, la fusion culmina en la posicion del bloque que se movio ultimo.
+*/
