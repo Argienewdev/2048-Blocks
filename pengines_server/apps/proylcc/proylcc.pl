@@ -36,21 +36,42 @@ replace_at_index([H | T], Index, Elem, [H | R]) :-
     NextIndex is Index - 1,
     replace_at_index(T, NextIndex, Elem, R).
 
-/*
-min_max_grid_values retorna el numero mas grande de la lista asi como tambien el mas chico.
-Se excluyen todos los guiones para luego buscar el numero mas pequeño y el mas grande.
-*/
+
 es_guion('-').
 
-min_max_grid_values(Grid, Min, Max):- 
+%retorna el maximo actual de la grilla
+max_actual(Grid, Max):- 
 	exclude(es_guion, Grid, Numeros), 
-	min_list(Numeros, Min), 
 	max_list(Numeros, Max).
 
+/*
+min_max_grid_values_permited retorna el rengo menor y mayor segun grilla, luego segun formula.
+min_max_grid_values_permited(MaxActual, MinPermitido, MaxPermitido)
+*/
+min_max_grid_values_permited(Max, 2, 4) :- member(Max, [2,4,8]), !.
+min_max_grid_values_permited(16, 2, 8) :- !.
+min_max_grid_values_permited(32, 2, 16) :- !.
+min_max_grid_values_permited(64, 2, 32) :- !.
+min_max_grid_values_permited(Max, 2, 64) :- member(Max, [128,256,512]), !.
+min_max_grid_values_permited(1024, 4, 128) :- !.
+min_max_grid_values_permited(2048, 8, 256) :- !.
+min_max_grid_values_permited(Max, 16, 512) :- member(Max, [4096,8192]), !.
+min_max_grid_values_permited(16384, 32, 1024) :- !.
 
+/* A partir de MaxAct >= 16000, el rango permitido (MinPerm y MaxPerm) se duplica
+cada vez que MaxAct se duplica. Se usa piso de log(MaxAct / 16000) / log2 para contar cuántas
+duplicaciones hubo respecto del valor base (16000), y se incrementan los K.
+*/
+min_max_grid_values_permited(MaxAct, MinPerm, MaxPerm) :-
+    Base is 16000,
+    K is floor(log(MaxAct / Base) / log(2)),
+    ExpMin is 5 + K,
+    ExpMax is 10 + K,
+    MinPerm is 2 ** ExpMin,
+    MaxPerm is 2 ** ExpMax.
 
 %Retorna true si se trata de una potencia de 2
-es_potencia_de_dos(1).  % 2^0 = 1 es potencia de dos
+es_potencia_de_dos(1). 
 
 es_potencia_de_dos(N) :-
     integer(N),
@@ -60,31 +81,15 @@ es_potencia_de_dos(N) :-
     es_potencia_de_dos(N2).
 
 /*
-randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego
-En realidad:
-El predicado elige un numero aleatorio potencia de dos entre el numero mas chico y mas grande de la grilla
-
-TODO: Seguir las reglas de generacion dadas en github
-
-Máximo de la Grilla		|	Rango			|	Observación
-2, 4, 8					|	2 a 4			|	
-16						|	2 a 8			|	
-32						|	2 a 16			|	
-64						|	2 a 32			|	
-128, 256, 512			|	2 a 64			|	
-1024					|	4 a 128			|	Se retira el 2
-2048					|	8 a 256			|	Se retira el 4
-4096, 8192				|	16 a 512		|	Se retira el 8
-16k						|	32 a 1024		|	Se retira el 16
-...						|	...				|	...
-
-De aqui en adelante, cada vez que se desbloquee un numero se retira el mas chico de la grilla y 
-el minimo y maximo del "Rango" se duplican.
-
+randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego.
+logica: elige el maximo valor actual de la grilla, y luego segun este valor calcula el rango minimo y maximo 
+basandose en grilla o formula si el MaxAct>=16000.
+por ultimo crea una lista de potencias de dos que esten dentro del rango y elige uno aleatorio.
 */
 
 randomBlock(Grid, Block) :- 
-	min_max_grid_values(Grid, Min, Max), 
+	max_actual(Grid, MaxAct), 
+	min_max_grid_values_permited(MaxAct, Min, Max),
 	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
 	random_member(Block, Potencias).
 
