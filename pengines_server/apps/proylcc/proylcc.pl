@@ -4,11 +4,26 @@
 		shoot/5	
 	]).
 :- use_module(library(lists)).
+:- use_module(library(arithmetic)).
 /*
 DUDAS:
 	-En el caso de que una LANE este completamente ocupada, debemos contemplar
 	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura 
-	entre los bloques
+	entre los bloques. ASUMO QUE EL USUARIO NO VA A HACER TAL COSA
+
+	-Se puede modificar la consulta que hace game a proylcc para implementar el powerup que 
+	te permite ver el bloque proximo a disparar? SI, PERO NO ES NECESARIO
+
+	-Que tan especificos hay que ser cuando describimos los predicados que definimos?
+	RTA: SIRVE DEFINIR LOS COMENTARIOS, SOLO SI NO SON COSAS EVIDENTES.
+	RTA: HAY QUE HACER INFORME
+
+	-Hay que implementar el "game over"? OPCIONAL
+
+	-Explica mejor el booster hint
+	POR COLUMNA, CUAL SERIA EL BLOQUE MAXIMO CONSEGUIDO Y EL COMBO. GRIS ESCRITO AL PIE O AL TECHO DE LA COLUMNA
+	COMBO A PARTIR DE X3? A ELEGIR Y ESPECIFICAR. EL COMBO ES CUANTAS FUSIONES SE LOGRARON.
+
 */
 
 %Predicados auxiliares:
@@ -114,8 +129,9 @@ randomBlock(Grid, Block) :-
 
 shoot(Block, Lane, Grid, Col, Effects) :-
 	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
-	block_fall(InsertGrid, Col, GravityGrid),
-	append([effect(InsertGrid, [])], [effect(GravityGrid, [])], Effects).
+	fusion(InsertGrid, Col, InsertIndex, FGrid),
+	block_fall(FGrid, Col, GravityGrid),
+	Effects = [effect(InsertGrid, []), effect(FGrid, []), effect(GravityGrid, [])].
 
 /*
 Block insert se encarga de insertar el bloque recien disparado en la posicion correspondiente y
@@ -159,6 +175,8 @@ Block_fall implementa la gravedad, la cual hace que los bloques caigan luego de 
 			-sort_column
 				-separate_scores
     		-reinsert_column
+	TODO: Block fall se puede optimizar haciendo que solo recorra las columnas alrededor de
+	las ultimas fusiones
 */
 
 block_fall(Grid, Col, GravityGrid) :-
@@ -253,9 +271,297 @@ Logica para fusiones:
 		Ej2.
 			se dispara un 4 contra 2 bloques numero 4. El numero 4 se duplica 2 veces por lo que resulta 16
 		Formula: bloque x 2^[cantidad de bloques con los que se fusiona]
-	Posicion final de fusion:
-		Para cualquier etapa:
-			-Si solo puede fusionarse con un bloque y es el de arriba entonces la fusion culmina en la posicion de arriba.
-			-Si hay posibilidad de fusionar mas de 2 bloques, se hace y culmina en el centro de la fusion.
-			-En cualquier otro caso, la fusion culmina en la posicion del bloque que se movio ultimo.
+	Logica de fusion:
+		Dada una grilla, se revisan los bloques adyacentes a cada bloque y se determina la cantidad
+		de bloques iguales.
+		En caso de hayar coincidencias, se compara cuales de estos tienen mas bloques iguales adyacentes.
+		Al determinar esto, dado el bloque de mas posibles combinaciones, se fusiona culminando en la 
+		posicion de dicho bloque.
+		En caso de que varios bloques adyacentes puedan fusionar con la misma cantidad de bloques, 
+		la fusion culmina en la posicion del bloque que se movio ultimo.
+		En caso de que haya una unica fusion posible y esta sea un bloque arriba de otro, esto resulta en una 
+		fusion en direccion hacia arriba.
+	Proceso de fusion (shoot):
+		El proceso de disparo consta de la etapa de insercion de bloque seguido de llevar a cabo todas las posibles
+		fusiones, aplicando gravedad entre los pasos.
+
+		Este proceso de fusiones se divide de la siguiente manera:
+			(1) Dada una grilla, se recorre para saber que posiciones pueden fusionarse.
+			Una vez decidido que bloques se van a fusionar:
+				-(2) Se modifica el valor del bloque fusionado
+				-(0) Dada la posicion donde se inserto el bloque nuevo, tengo que hacer check position a las celdas adyacentes
+				a los lados si estas son iguales, y luego, de entre las opciones elijo la que mas fusiones admita. Si 
+				el bloque disparado admite una sola fusion entonces fusiono hacia si mismo excepto que dicha fusion sea con
+				el bloque de arriba, en cuyo caso fusiono hacia arriba.
+				-(1.1) Se guarda la posicion de dicho bloque donde culmino la fusion (en una lista)
+				-(3) Se reemplazan los bloques usados para la fusion por '-'
+				-(block_fall) Luego de realizar todas las fusiones, se aplica gravedad a toda la grilla
+			(1) Luego se vuelve a recorrer y si no hay mas posibles fusiones se da por terminado el shoot.
 */
+/*
+check_Position(+Grid, +Col, +Index, -Matches, -MIndexes)
+este predicado se encarga de, dada una grilla, la cantidad de columnas y una posicion, revisar
+sus celdas adyacentes para saber cuantas son fusionables y cuales son sus posiciones
+Matches es la cantidad de celdas adyacentes fusionables 
+MIndexes son los indices de estas celdas fusionables
+*/
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+
+check_position(Grid, Col, Index, Matches, MIndexes) :-
+	check_right(Grid, Col, Index, RightMatch, RightIndex),
+	check_left(Grid, Col, Index, LeftMatch, LeftIndex),
+	check_top(Grid, Col, Index, TopMatch, TopIndex),
+	check_bottom(Grid, Col, Index, BottomMatch, BottomIndex),
+	append(LeftIndex, RightIndex, RLIndex),
+	append(TopIndex, BottomIndex, TBIndex),
+	append(RLIndex, TBIndex, MIndexes),
+	Matches is RightMatch + LeftMatch + BottomMatch + TopMatch.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+Este predicado verifica si el bloque de la derecha coincide
+*/
+check_right(_Grid, Col, Index, 0, []) :-
+	last_column(Col, Index), !.
+
+check_right(Grid, _Col, Index, 1, MIndexes) :-
+	RightBlockIndex is Index + 1,
+	nth0(RightBlockIndex, Grid, RightBlockValue),
+	nth0(Index, Grid, BlockValue),
+	RightBlockValue == BlockValue, !,
+	MIndexes = [RightBlockIndex].
+
+check_right(Grid, _Col, Index, 0, []) :-
+	RightBlockIndex is Index + 1,
+	nth0(RightBlockIndex, Grid, RightBlockValue),
+	nth0(Index, Grid, BlockValue),
+	RightBlockValue \= BlockValue.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+Este predicado verifica si el bloque de la izquierda coincide
+*/
+check_left(_Grid, Col, Index, 0, []) :-
+	first_column(Col, Index), !.
+
+check_left(Grid, _Col, Index, 1, MIndexes) :-
+	LeftBlockIndex is Index - 1,
+	nth0(LeftBlockIndex, Grid, LeftBlockValue),
+	nth0(Index, Grid, BlockValue),
+	LeftBlockValue == BlockValue, !,
+	MIndexes = [LeftBlockIndex].
+
+check_left(Grid, _Col, Index, 0, []) :-
+	LeftBlockIndex is Index - 1,
+	nth0(LeftBlockIndex, Grid, LeftBlockValue),
+	nth0(Index, Grid, BlockValue),
+	LeftBlockValue \= BlockValue.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+Este predicado verifica si el bloque de abajo coincide
+*/
+check_bottom(Grid, Col, Index, 0, []) :-
+	last_row(Grid, Col, Index), !.
+
+check_bottom(Grid, Col, Index, 1, MIndexes) :-
+	BottomBlockIndex is Index + Col,
+	nth0(BottomBlockIndex, Grid, BottomBlockValue),
+	nth0(Index, Grid, BlockValue),
+	BottomBlockValue == BlockValue, !,
+	MIndexes = [BottomBlockIndex].
+
+check_bottom(Grid, Col, Index, 0, []) :-
+	BottomBlockIndex is Index + Col,
+	nth0(BottomBlockIndex, Grid, BottomBlockValue),
+	nth0(Index, Grid, BlockValue),
+	BottomBlockValue \= BlockValue.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+Este predicado verifica si el bloque de arriba coincide
+*/
+check_top(_Grid, Col, Index, 0, []) :-
+	first_row(Col, Index), !.
+
+check_top(Grid, Col, Index, 1, MIndexes) :-
+	TopBlockIndex is Index - Col,
+	nth0(TopBlockIndex, Grid, TopBlockValue),
+	nth0(Index, Grid, BlockValue),
+	TopBlockValue == BlockValue, !,
+	MIndexes = [TopBlockIndex].
+
+check_top(Grid, Col, Index, 0, []) :-
+	TopBlockIndex is Index - Col,
+	nth0(TopBlockIndex, Grid, TopBlockValue),
+	nth0(Index, Grid, BlockValue),
+	TopBlockValue \= BlockValue.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/* 
+Este predicado verifica si la posicion pasada por 
+parametro pertenece a la primera columna
+*/
+
+first_column(_Col, 0) :- !.
+first_column(Col, Index) :-
+	Index > 0,
+	NextIndex is Index - Col,
+	first_column(Col, NextIndex).
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/* 
+Este predicado verifica si la posicion pasada por 
+parametro pertenece a la ultima columna
+*/
+
+last_column(Col, Index) :- 
+	Index is Col - 1, !.
+last_column(Col, Index) :-
+	Index > 0,
+	NextIndex is Index - Col,
+	last_column(Col, NextIndex).
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/* 
+Este predicado verifica si la posicion pasada por 
+parametro pertenece a la primera fila
+*/
+first_row(Col, Index) :-
+	Index < Col.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+
+/* 
+Este predicado verifica si la posicion pasada por 
+parametro pertenece a la ultima fila
+*/
+last_row(Grid, Col, Index) :-
+	length(Grid, GLength),	
+	TopRowMinIndex is GLength - Col,
+	Index >= TopRowMinIndex.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+
+/* 
+Este predicado calcula el nuevo valor del bloque a fusionar, basado en el bloque y la 
+cantidad de bloques con los que se va a fusionar.
+*/
+
+new_block_value(BlockValue, Matches, NewBlockValue) :-
+	NewBlockValue is BlockValue * (2 ** Matches).
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+fusion se encarga de llevar a cabo las fusiones
+*/
+
+%Caso 1: Hay una unica fusion posible, arriba
+fusion(Grid, Col, Index, Grid) :-
+	check_position(Grid, Col, Index, Matches, _MIndexes),
+	Matches == 0, !.
+
+%Caso 1: Hay una unica fusion posible, arriba
+fusion(Grid, Col, Index, RRGrid) :-
+	check_position(Grid, Col, Index, Matches, MIndexes),
+	Matches > 0,
+	best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges),
+	Matches == BestMatchMerges,
+	Matches == 1,
+	%Uso last porque si hay fusion posible arriba su posicion es la ultima
+	last(MIndexes, BlockMatchIndex),
+	%Verifico si ese unico match efectivamente esta arriba
+	BlockMatchIndex is Index - Col, !,
+	nth0(Index, Grid, BlockValue),
+	new_block_value(BlockValue, Matches, NewBlockValue),
+	replace_at_index(Grid, BlockMatchIndex, NewBlockValue, RGrid),
+	replace_at_index(MIndexes, BestMatchIndex, Index, BlocksToRemoveIndexes),
+	remove_merged(RGrid, BlocksToRemoveIndexes, RRGrid).
+
+%Caso 2: Caso merge sobre INDEX
+fusion(Grid, Col, Index, RRGrid) :-
+	check_position(Grid, Col, Index, Matches, MIndexes),
+	Matches > 0,
+	best_match(Grid, Col, MIndexes, _BestMatchIndex, BestMatchMerges),
+	Matches >= BestMatchMerges, !,
+	nth0(Index, Grid, BlockValue),
+	new_block_value(BlockValue, Matches, NewBlockValue),
+	replace_at_index(Grid, Index, NewBlockValue, RGrid),
+	remove_merged(RGrid, MIndexes, RRGrid).
+
+%Caso 3: Caso merge sobre la mejor opcion
+fusion(Grid, Col, Index, RRGrid) :-
+	check_position(Grid, Col, Index, Matches, MIndexes),
+	Matches > 0,
+	%TODO: Make Best Match return index of block to fuse with
+	best_match(Grid, Col, MIndexes, BestMatchIndexOnMIndexes, BestMatchMerges),
+	Matches < BestMatchMerges,
+	nth0(BestMatchIndexOnMIndexes, MIndexes, BestMatchIndexOnGrid),
+	check_position(Grid, Col, BestMatchIndexOnGrid, _BestMatches, BestMIndexes),
+	nth0(BestMatchIndexOnGrid, Grid, BlockValue),
+	new_block_value(BlockValue, BestMatchMerges, NewBlockValue),
+	replace_at_index(Grid, BestMatchIndexOnGrid, NewBlockValue, RGrid),
+	remove_merged(RGrid, BestMIndexes, RRGrid).
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+
+/*
+remove merged recibe una grilla y una lista de indices de bloques a remover
+retorna una grilla donde todos los bloques a remover se reemplazaron por '-'
+*/
+
+remove_merged(Grid, [], Grid):- !.
+
+remove_merged(Grid, [X | Xs], RGrid) :-
+	replace_at_index(Grid, X, '-', NextGrid),
+	remove_merged(NextGrid, Xs, RGrid).
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
+/*
+best match retorna la posicion donde mas fusiones se logran y la cantidad
+*/
+
+best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges) :-
+	best_match_aux(Grid, Col, MIndexes, MatchMerges),
+	max_list(MatchMerges, BestMatchMerges),
+	nth0(BestMatchIndex, MatchMerges, BestMatchMerges), !.
+
+best_match_aux(Grid, Col, [X], [Y]) :-
+	check_position(Grid, Col, X, Y, _MIndexes), !.
+
+best_match_aux(Grid, Col, [X], [_Y | Ys]) :-
+	check_position(Grid, Col, X, Ys, _MIndexes), !.
+
+best_match_aux(Grid, Col, [X | Xs], [Y | Ys]) :-
+	check_position(Grid, Col, X, Y, _MIndexes),
+	best_match_aux(Grid, Col, Xs, Ys), !.
+
+%-------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------------------
