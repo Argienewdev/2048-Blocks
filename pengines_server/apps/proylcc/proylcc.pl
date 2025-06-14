@@ -130,8 +130,18 @@ randomBlock(Grid, Block) :-
 shoot(Block, Lane, Grid, Col, Effects) :-
 	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
 	fusion(InsertGrid, Col, InsertIndex, FGrid),
-	block_fall(FGrid, Col, GravityGrid),
-	Effects = [effect(InsertGrid, []), effect(FGrid, []), effect(GravityGrid, [])].
+	append([effect(InsertGrid, [])], FGrid, Effects).
+
+/*
+Deberia tener una lista de bloques que se movieron y llamar a shoot por cada uno
+almacenar las grillas intermedias, llamar a gravedad entre medio, y almacenar que nuevos
+bloques se generaron.
+Luego con la nueva lista de bloques que se movieron deberia volver a llamar a este
+predicado para que vuelva a hacer todo hasta que no encuentre mas de estos casos.
+
+-fusion deberia poder manejar varias fusiones simultaneas
+-Gravedad deberia devolver una lista de bloques que se movieron.
+*/
 
 /*
 Block insert se encarga de insertar el bloque recien disparado en la posicion correspondiente y
@@ -177,6 +187,8 @@ Block_fall implementa la gravedad, la cual hace que los bloques caigan luego de 
     		-reinsert_column
 	TODO: Block fall se puede optimizar haciendo que solo recorra las columnas alrededor de
 	las ultimas fusiones
+	TODO: Siempre retorno una grilla aunque no hayan cambios, CAMBIAR
+	TODO: Puedo evitarlo llamando a la gravedad luego de fusiones
 */
 
 block_fall(Grid, Col, GravityGrid) :-
@@ -191,9 +203,9 @@ process_columns(TotalCols, TotalCols, Grid, Grid) :- !.
 
 process_columns(Index, TotalCols, GridIn, GridOut) :-
 	
-    extract_column(GridIn, Index, TotalCols, 0, Column),
-    sort_column(Column, SortedColumn),
-    reinsert_column(GridIn, Index, TotalCols, 0, SortedColumn, NextGrid),
+    extract_column(GridIn, Index, TotalCols, 0, Columns),
+    sort_column(Columns, SortedColumns),
+    reinsert_column(GridIn, Index, TotalCols, 0, SortedColumns, NextGrid),
 	
     NextIndex is Index + 1,
     process_columns(NextIndex, TotalCols, NextGrid, GridOut).
@@ -479,15 +491,15 @@ fusion se encarga de llevar a cabo las fusiones
 */
 
 %Caso 1: Hay una unica fusion posible, arriba
-fusion(Grid, Col, Index, Grid) :-
+fusion(Grid, Col, Index, []) :-
 	check_position(Grid, Col, Index, Matches, _MIndexes),
 	Matches == 0, !.
 
 %Caso 1: Hay una unica fusion posible, arriba
-fusion(Grid, Col, Index, RRGrid) :-
+fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
 	Matches > 0,
-	best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges),
+	best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches == BestMatchMerges,
 	Matches == 1,
 	%Uso last porque si hay fusion posible arriba su posicion es la ultima
@@ -498,32 +510,32 @@ fusion(Grid, Col, Index, RRGrid) :-
 	new_block_value(BlockValue, Matches, NewBlockValue),
 	replace_at_index(Grid, BlockMatchIndex, NewBlockValue, RGrid),
 	replace_at_index(MIndexes, BestMatchIndex, Index, BlocksToRemoveIndexes),
-	remove_merged(RGrid, BlocksToRemoveIndexes, RRGrid).
+	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid).
 
 %Caso 2: Caso merge sobre INDEX
-fusion(Grid, Col, Index, RRGrid) :-
+fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)]), effect(GGrid, [])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
 	Matches > 0,
-	best_match(Grid, Col, MIndexes, _BestMatchIndex, BestMatchMerges),
+	best_match(Grid, Col, MIndexes, _BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches >= BestMatchMerges, !,
 	nth0(Index, Grid, BlockValue),
 	new_block_value(BlockValue, Matches, NewBlockValue),
 	replace_at_index(Grid, Index, NewBlockValue, RGrid),
-	remove_merged(RGrid, MIndexes, RRGrid).
+	remove_merged(RGrid, MIndexes, FGrid),
+	block_fall(FGrid, Col, GGrid).
 
 %Caso 3: Caso merge sobre la mejor opcion
-fusion(Grid, Col, Index, RRGrid) :-
+fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)]), effect(GGrid, [])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
 	Matches > 0,
-	%TODO: Make Best Match return index of block to fuse with
-	best_match(Grid, Col, MIndexes, BestMatchIndexOnMIndexes, BestMatchMerges),
+	best_match(Grid, Col, MIndexes, BestMatchIndexOnMIndexes, BestMatchMerges, BestMatchMergesIndexes),
 	Matches < BestMatchMerges,
 	nth0(BestMatchIndexOnMIndexes, MIndexes, BestMatchIndexOnGrid),
-	check_position(Grid, Col, BestMatchIndexOnGrid, _BestMatches, BestMIndexes),
 	nth0(BestMatchIndexOnGrid, Grid, BlockValue),
 	new_block_value(BlockValue, BestMatchMerges, NewBlockValue),
 	replace_at_index(Grid, BestMatchIndexOnGrid, NewBlockValue, RGrid),
-	remove_merged(RGrid, BestMIndexes, RRGrid).
+	remove_merged(RGrid, BestMatchMergesIndexes, FGrid),
+	block_fall(FGrid, Col, GGrid).
 
 %-------------------------------------------------------------------------------------------
 
@@ -547,20 +559,21 @@ remove_merged(Grid, [X | Xs], RGrid) :-
 best match retorna la posicion donde mas fusiones se logran y la cantidad
 */
 
-best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges) :-
-	best_match_aux(Grid, Col, MIndexes, MatchMerges),
+best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, BestMatchMergesIndexes) :-
+	best_match_aux(Grid, Col, MIndexes, MatchMerges, MergesList),
 	max_list(MatchMerges, BestMatchMerges),
-	nth0(BestMatchIndex, MatchMerges, BestMatchMerges), !.
+	nth0(BestMatchIndex, MatchMerges, BestMatchMerges),
+	nth0(BestMatchIndex, MergesList, BestMatchMergesIndexes), !.
 
-best_match_aux(Grid, Col, [X], [Y]) :-
-	check_position(Grid, Col, X, Y, _MIndexes), !.
+best_match_aux(Grid, Col, [X], [Y], [MIndexes]) :-
+	check_position(Grid, Col, X, Y, MIndexes), !.
 
-best_match_aux(Grid, Col, [X], [_Y | Ys]) :-
-	check_position(Grid, Col, X, Ys, _MIndexes), !.
+best_match_aux(Grid, Col, [X], [_Y | Ys], [_Z | MIndexes]) :-
+	check_position(Grid, Col, X, Ys, MIndexes), !.
 
-best_match_aux(Grid, Col, [X | Xs], [Y | Ys]) :-
-	check_position(Grid, Col, X, Y, _MIndexes),
-	best_match_aux(Grid, Col, Xs, Ys), !.
+best_match_aux(Grid, Col, [X | Xs], [Y | Ys], [MIndexes | MIndexes2]) :-
+	check_position(Grid, Col, X, Y, MIndexes),
+	best_match_aux(Grid, Col, Xs, Ys, MIndexes2), !.
 
 %-------------------------------------------------------------------------------------------
 
