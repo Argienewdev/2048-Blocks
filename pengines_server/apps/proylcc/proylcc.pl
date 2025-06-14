@@ -44,6 +44,11 @@ max_actual(Grid, Max):-
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Max).
 
+%retorna el minimo actual de la grilla
+min_actual(Grid, Min):- 
+	exclude(es_guion, Grid, Numeros), 
+	max_list(Numeros, Min).
+
 /*
 min_max_grid_values_permited retorna el rengo menor y mayor segun grilla, luego segun formula.
 min_max_grid_values_permited(MaxActual, MinPermitido, MaxPermitido)
@@ -59,8 +64,8 @@ min_max_grid_values_permited(Max, 16, 512) :- member(Max, [4096,8192]), !.
 min_max_grid_values_permited(16384, 32, 1024) :- !.
 
 /* A partir de MaxAct >= 16000, el rango permitido (MinPerm y MaxPerm) se duplica
-cada vez que MaxAct se duplica. Se usa piso de log(MaxAct / 16000) / log2 para contar cuántas
-duplicaciones hubo respecto del valor base (16000), y se incrementan los K.
+cada vez que MaxAct se duplica. Se usa K= piso de log(MaxAct / 16000) / log2 para contar cuántas
+duplicaciones hubo respecto del valor base (16000), luego se incrementan K veces los exponentes.
 */
 min_max_grid_values_permited(MaxAct, MinPerm, MaxPerm) :-
     Base is 16000,
@@ -80,6 +85,25 @@ es_potencia_de_dos(N) :-
     N2 is N // 2,
     es_potencia_de_dos(N2).
 
+/*replace_all(ListaInicial,Valor,Reemplazo,Resultado)
+dada una lista inicial reemplaza cada aparicion de Valor, por un elemento deseado Reemplazo, luego retorna una lista con los valores reemplazados
+*/
+
+%caso base, llegue al final de la grilla
+replace_all([],_,_,[]).
+%caso 1, el valor actual es el que quiero reemplazar, sigo rearmando la lista pero en vez de el usar valor uso reemplazo
+replace_all([Value|T], Value, Replaccement, [Replacement|R]):- 
+	replace_all(T,Value,Replacement, R).
+%caso 2, el valor actual no es el que quiero reemplazar, sigo rearmando la lista con el mismo valor,
+replace_All([H|T], Value, Replacement, [H|R]):-
+	 H \= Value, replace_all(T, Value, Replacement, R).
+
+remove_min(Grid, Col, GravityGrid):- 
+	min_actual(Grid, Min),
+	replace_all(Grid, Min,-, GridRemoved),
+	remove_min(Grid, GravityGrid),
+	block_fall(Grid, Col, GravityGrid).
+
 /*
 randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego.
 logica: elige el maximo valor actual de la grilla, y luego segun este valor calcula el rango minimo y maximo 
@@ -87,11 +111,12 @@ basandose en grilla o formula si el MaxAct>=16000.
 por ultimo crea una lista de potencias de dos que esten dentro del rango y elige uno aleatorio.
 */
 
-randomBlock(Grid, Block) :- 
+randomBlock(Grid, Block):-
 	max_actual(Grid, MaxAct), 
 	min_max_grid_values_permited(MaxAct, Min, Max),
 	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
 	random_member(Block, Potencias).
+
 
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
