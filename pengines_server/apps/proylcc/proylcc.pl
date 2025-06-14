@@ -107,7 +107,7 @@ dada una lista inicial reemplaza cada aparicion de Valor, por un elemento desead
 %caso base, llegue al final de la grilla
 replace_all([],_,_,[]).
 %caso 1, el valor actual es el que quiero reemplazar, sigo rearmando la lista pero en vez de el usar valor uso reemplazo
-replace_all([Value|T], Value, Replaccement, [Replacement|R]):- 
+replace_all([Value|T], Value, Replacement, [Replacement|R]):- 
 	replace_all(T,Value,Replacement, R).
 %caso 2, el valor actual no es el que quiero reemplazar, sigo rearmando la lista con el mismo valor,
 replace_All([H|T], Value, Replacement, [H|R]):-
@@ -115,9 +115,8 @@ replace_All([H|T], Value, Replacement, [H|R]):-
 
 remove_min(Grid, Col, GravityGrid):- 
 	min_actual(Grid, Min),
-	replace_all(Grid, Min,-, GridRemoved),
-	remove_min(Grid, GravityGrid),
-	block_fall(Grid, Col, GravityGrid).
+	replace_all(Grid, Min, -, GridRemoved),
+	block_fall(GridRemoved, Col, GravityGrid).
 
 /*
 randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego.
@@ -164,7 +163,7 @@ bloques se generaron.
 Luego con la nueva lista de bloques que se movieron deberia volver a llamar a este
 predicado para que vuelva a hacer todo hasta que no encuentre mas de estos casos.
 
--fusion deberia poder manejar varias fusiones simultaneas
+-fusion deberia poder manejar fusiones simultaneas
 -Gravedad deberia devolver una lista de bloques que se movieron.
 */
 
@@ -515,7 +514,7 @@ new_block_value(BlockValue, Matches, NewBlockValue) :-
 fusion se encarga de llevar a cabo las fusiones
 */
 
-%Caso 1: Hay una unica fusion posible, arriba
+%Caso 0: No hay fusiones
 fusion(Grid, Col, Index, []) :-
 	check_position(Grid, Col, Index, Matches, _MIndexes),
 	Matches == 0, !.
@@ -523,7 +522,6 @@ fusion(Grid, Col, Index, []) :-
 %Caso 1: Hay una unica fusion posible, arriba
 fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
-	Matches > 0,
 	best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches == BestMatchMerges,
 	Matches == 1,
@@ -540,7 +538,6 @@ fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)])]) :-
 %Caso 2: Caso merge sobre INDEX
 fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)]), effect(GGrid, [])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
-	Matches > 0,
 	best_match(Grid, Col, MIndexes, _BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches >= BestMatchMerges, !,
 	nth0(Index, Grid, BlockValue),
@@ -552,7 +549,6 @@ fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)]), effect(GGrid
 %Caso 3: Caso merge sobre la mejor opcion
 fusion(Grid, Col, Index, [effect(FGrid, [newBlock(NewBlockValue)]), effect(GGrid, [])]) :-
 	check_position(Grid, Col, Index, Matches, MIndexes),
-	Matches > 0,
 	best_match(Grid, Col, MIndexes, BestMatchIndexOnMIndexes, BestMatchMerges, BestMatchMergesIndexes),
 	Matches < BestMatchMerges,
 	nth0(BestMatchIndexOnMIndexes, MIndexes, BestMatchIndexOnGrid),
@@ -590,6 +586,12 @@ best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, BestMatchMerges
 	nth0(BestMatchIndex, MatchMerges, BestMatchMerges),
 	nth0(BestMatchIndex, MergesList, BestMatchMergesIndexes), !.
 
+
+/*
+aux retorna dos listas:
+	La primera es cuantas fusiones logra cada indice
+	La segunda es una lista de con quienes (indices)
+*/
 best_match_aux(Grid, Col, [X], [Y], [MIndexes]) :-
 	check_position(Grid, Col, X, Y, MIndexes), !.
 
