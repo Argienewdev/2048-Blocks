@@ -75,7 +75,7 @@ function Game() {
   }
   
   /**
-   * Displays each grid of the sequence as the current grid in 0.5sec intervals, and considers the other effect information.
+   * Displays each grid of the sequence as the current grid in 0.25sec intervals, and considers the other effect information.
    * @param effects The list of effects to be animated.
    */
   async function animateEffect(effects: EffectTerm[]) {
@@ -97,7 +97,7 @@ function Game() {
       setWaiting(false);
       return;
     }
-    await delay(500);
+    await delay(250);
     animateEffect(restRGrids);
   }
 
