@@ -160,12 +160,12 @@ randomBlock(Grid, Block):-
  * La consulta da un bloque, en una columna, dada una grilla, de n columnas, debe retornar una lista de grillas
  * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
  * a esa ultima pide un bloque random para seguir jugando.
- */
-/*
-shoot(Block, Lane, Grid, Col, Effects) :-
-	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
-	fusion(InsertGrid, Col, InsertIndex, FGrid),
-	append([effect(InsertGrid, [])], FGrid, Effects).
+
+shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla
+cuando ya esta calculada, este procede del siguiente modo:
+	block insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
+	fusion_admin: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
+	append: junto los efectos para retornarlos
 */
 
 shoot(Block, Lane, Grid, Col, Effects) :-
@@ -186,23 +186,26 @@ shoot(Block, Lane, Grid, Col, Effects) :-
 %-------------------------------------------------------------------------------------------
 
 /*
-Deberia tener una lista de bloques que se movieron y llamar a shoot por cada uno
-almacenar las grillas intermedias, llamar a gravedad entre medio, y almacenar que nuevos
-bloques se generaron.
-Luego con la nueva lista de bloques que se movieron deberia volver a llamar a este
-predicado para que vuelva a hacer todo hasta que no encuentre mas de estos casos.
-
--fusion deberia poder manejar fusiones simultaneas
--Gravedad deberia devolver una lista de bloques que se movieron.
-*/
-
-/*
-Fusion admin se encargara de hacer los llamados a fusion y block_fall las
-veces que sea necesario para que todas las fusiones se lleven a cabo.
-Se retornara una lista de efectos.
+Fusion admin retornara una lista de efectos una vez terminadas todas las fusiones
+Fusion admin usa un auxiliar para "otorgarse" un acumulador para los efectos
 */
 fusion_admin(Grid, Col, Indexes, Effects) :-
 	fusion_admin_aux(Grid, Col, Indexes, [], Effects).
+
+/*
+Fusion admin aux funcionara de la siguiente manera
+	fusion loop: se encarga de llevar a cabo todas las fusiones simultaneas y retorna el ultimo
+	efecto junto con todos los bloques nuevos que se crearon y todos los nuevos indices de bloques
+	que se movieron luego de las fusiones
+	block fall: aplica gravedad, retorna la nueva grilla y los bloques que se movieron
+
+	si block fall no era necesario, entonces solo me quedo con el efecto de las fusiones y
+	hago un llamado recursivo para volver a fusion admin aux con los bloques que se movieron en las
+	fusiones simultaneas
+
+	si block fall si era necesario, agrego el efecto a la lista que voy a retornar, agrego los indices
+	de bloques que se movieron a la lista de indices a revisar nuevamente y hago el llamado recursivo
+*/
 
 fusion_admin_aux(_Grid, _Col, [], Acc, Acc):- !.
 
@@ -221,11 +224,22 @@ fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
 
 	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects)), !.
 
+/*
+fusion loop usa auxiliares para otorgar acumuladores
+*/
+/*
+TODO: Ver si esto realmente sirve o ya no
 fusion_loop(Grid, Col, Indexes, FusionEffects, LastGrid, []) :-
 	fusion_loop_aux(Grid, Col, Indexes, FusionEffects, LastGrid, [], [], []), !.
+*/
 
 fusion_loop(Grid, Col, Indexes, FusionEffects, LastGrid, NewIndexes) :-
 	fusion_loop_aux(Grid, Col, Indexes, FusionEffects, LastGrid, [], [], NewIndexes).
+
+/*
+fusion loop aux funciona de la siguiente manera:
+
+*/
 
 fusion_loop_aux(Grid, _Col, [], effect(Grid, Acc), Grid, Acc, NewIndexesAcc, NewIndexesAcc) :- !.
 
