@@ -63,12 +63,18 @@ replace_at_index([H | T], Index, Elem, [H | R]) :-
 
 es_guion('-').
 
-%retorna el maximo actual de la grilla
+/*
+max_actual(+Grid, -Max)
+retorna el maximo actual de la grilla
+*/
 max_actual(Grid, Max):- 
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Max).
 
-%retorna el minimo actual de la grilla
+/*
+min_actual(+Grid, -Min)
+retorna el minimo actual de la grilla
+*/
 min_actual(Grid, Min):- 
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Min).
@@ -170,14 +176,14 @@ cuando ya esta calculada, este procede del siguiente modo:
 
 shoot(Block, Lane, Grid, Col, Effects) :-
 	gridSize(_), !,
-	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
+	block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
 	fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
 	append([effect(InsertGrid, [])], FEffects, Effects).
 
 shoot(Block, Lane, Grid, Col, Effects) :-
 	length(Grid, GridSize),
 	assert(gridSize(GridSize)), !,
-	block_insert(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex),
+	block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
 	fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
 	append([effect(InsertGrid, [])], FEffects, Effects).
 
@@ -262,6 +268,15 @@ fusion_loop_aux(Grid, Col, [X | Xs], FinalFusionEffect, LastGrid, Acc, NewIndexe
 %-------------------------------------------------------------------------------------------
 
 /*
+block_insert(+Block, +Lane, +Grid, +Col, -InsertGrid, -InsertIndex)
+es una simplificacion de block insert aux, el cual es llamado con la fila
+inicializada en 0.
+*/
+block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex) :-
+	block_insert_aux(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex).
+
+/*
+block_insert_aux(+Block, +Lane, +Grid, +DRow, +Col, -InsertGrid, -InsertIndex)
 Block insert se encarga de insertar el bloque recien disparado en la posicion correspondiente y
 retornar el indice (en base 0) donde se insertó (-1 es no insertado).
 Caso base (final): Se verifica la ultima fila y se inserta el elemento
@@ -269,8 +284,7 @@ Caso LANE ocupada completamente: Retorna la misma grilla sin cambios (Problema: 
 Caso recursivo 1: Se verifica la primera fila y se inserta el elemento si se puede
 Caso recursivo 2: Se verifica la proxima fila hasta llegar al limite (caso base)
 */
-
-block_insert(Block, Lane, Grid, DRow, Col, InsertGrid, InsertIndex) :-
+block_insert_aux(Block, Lane, Grid, DRow, Col, InsertGrid, InsertIndex) :-
 	%DRow: "Diminished Row" o "Fila disminuida" hace referencia a la anteultima fila
 	gridSize(GridLength), 
 	Rows is (GridLength / Col) - 1,
@@ -279,26 +293,27 @@ block_insert(Block, Lane, Grid, DRow, Col, InsertGrid, InsertIndex) :-
 	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid),
 	InsertIndex is Index - 1, !.
 
-block_insert(_Block, _Lane, Grid, DRow, Col, Grid, -1) :-
+block_insert_aux(_Block, _Lane, Grid, DRow, Col, Grid, -1) :-
 	gridSize(GridLength), 
 	Rows is (GridLength / Col) - 1,
 	DRow =:= Rows,
 	!.
 
-block_insert(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
+block_insert_aux(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 	Index is ((Col * Row) + Lane),
 	conditional_replace_at_index(Index, Grid, -, Block, InsertGrid),
 	InsertIndex is Index - 1, !.
 
-block_insert(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
+block_insert_aux(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 	NextRow is (Row + 1),
-	block_insert(Block, Lane, Grid, NextRow, Col, InsertGrid, InsertIndex).
+	block_insert_aux(Block, Lane, Grid, NextRow, Col, InsertGrid, InsertIndex).
 
 %-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
 /*
+block_fall(+Grid, +Col, -GravityGrid, -Movements)
 Block_fall implementa la gravedad, la cual hace que los bloques caigan luego de combinaciones
 	Predicados auxiliares:
 		-Process_columns
@@ -324,6 +339,7 @@ block_fall(Grid, Col, GravityGrid, Movements) :-
 %-------------------------------------------------------------------------------------------
 
 /*
+process_columns(+GridIn, +TotalCols, -GridOut, -Movements)
 process_columns recorre la grilla extrayendo, organizando y reinsertando columnas una a una
 para que los bloques no tengan espacio vacio "debajo", retornando una nueva grilla sin bloques "flotantes".
 */
@@ -350,6 +366,7 @@ process_columns_aux(Index, TotalCols, GridIn, GridOut, Acc, Movements) :-
 %-------------------------------------------------------------------------------------------
 
 /*
+sort_column(+OriginalColumn, -SortedColumn)
 sort_column toma la lista que representa una columna y la ordena
 diviendola en "no guiones" y "guiones" para despues concatenarla
 Ej. [1,-,2,-,3] 
@@ -377,6 +394,7 @@ separate_scores([H|T], [H|Hs], Scores) :-
 %-------------------------------------------------------------------------------------------
 
 /*
+extract_column(+Grid, +ColIndex, +NumCols, +Row, -ExtractedColumn)
 extract_column calcula que posiciones de la grilla pertenecen a la columna que se le 
 pide extraer para luego agregarlas a la lista a retornar, la cual contiene todos los 
 elementos de la columna especificada.
@@ -401,6 +419,7 @@ extract_column(Grid, ColIndex, NumCols, NumRows, [Elem | Rest]) :-
 %-------------------------------------------------------------------------------------------
 
 /*
+reinsert_column(+GridIn, +ColIndex, +NumCols, +Row, +ColumnToInsert, -GridOut)
 reinsert_column, dada una columna a reinsertar, la grilla, y el indice de dicha columna (basado en 0),
 reemplaza los elementos que pertenezcan a la columna en la grilla por los de la nueva columna.
 Este predicado comienza por la columna 0 y termina al llegar a la ultima columna.
@@ -517,6 +536,7 @@ check_position(Grid, Col, Index, Matches, MIndexes) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+valid_index(+Grid, +Index)
 Este predicado verifica que el indice apunte a un numero y no a un guion
 */
 valid_index(Grid, Index) :-
@@ -526,6 +546,7 @@ valid_index(Grid, Index) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+check_right(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de la derecha coincide
 */
 check_right(_Grid, Col, Index, 0, []) :-
@@ -548,6 +569,7 @@ check_right(Grid, _Col, Index, 0, []) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+check_left(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de la izquierda coincide
 */
 check_left(_Grid, Col, Index, 0, []) :-
@@ -570,6 +592,7 @@ check_left(Grid, _Col, Index, 0, []) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+check_bottom(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de abajo coincide
 */
 check_bottom(_Grid, Col, Index, 0, []) :-
@@ -592,6 +615,7 @@ check_bottom(Grid, Col, Index, 0, []) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+check_top(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de arriba coincide
 */
 check_top(_Grid, Col, Index, 0, []) :-
@@ -614,6 +638,7 @@ check_top(Grid, Col, Index, 0, []) :-
 
 %-------------------------------------------------------------------------------------------
 /* 
+first_column(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
 parametro pertenece a la primera columna
 */
@@ -628,6 +653,7 @@ first_column(Col, Index) :-
 
 %-------------------------------------------------------------------------------------------
 /* 
+last_column(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
 parametro pertenece a la ultima columna
 */
@@ -643,6 +669,7 @@ last_column(Col, Index) :-
 
 %-------------------------------------------------------------------------------------------
 /* 
+first_row(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
 parametro pertenece a la primera fila
 */
@@ -654,6 +681,7 @@ first_row(Col, Index) :-
 %-------------------------------------------------------------------------------------------
 
 /* 
+last_row(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
 parametro pertenece a la ultima fila
 */
@@ -667,6 +695,7 @@ last_row(Col, Index) :-
 %-------------------------------------------------------------------------------------------
 
 /* 
+new_block_value(+BlockValue, +Matches, -NewBlockValue)
 Este predicado calcula el nuevo valor del bloque a fusionar, basado en el bloque y la 
 cantidad de bloques con los que se va a fusionar.
 */
@@ -678,7 +707,10 @@ new_block_value(BlockValue, Matches, NewBlockValue) :-
 
 %-------------------------------------------------------------------------------------------
 /*
+fusion(+Grid, +Col, +Index, -FGrid, -NewBlock, -ResultIndex)
 fusion se encarga de llevar a cabo las fusiones, puede dar falso
+Retorna una grilla resultante, una estructura tipo newBlock con el nuevo bloque
+y el indice de donde se termino la fusion
 */
 
 %Caso 1: Hay una unica fusion posible, arriba
@@ -723,6 +755,7 @@ fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [BestMatchIndexOnGrid])
 %-------------------------------------------------------------------------------------------
 
 /*
+remove_merged(+Grid, +Indexes, -RGrid)
 remove merged recibe una grilla y una lista de indices de bloques a remover
 retorna una grilla donde todos los bloques a remover se reemplazaron por '-'
 */
@@ -737,7 +770,9 @@ remove_merged(Grid, [X | Xs], RGrid) :-
 
 %-------------------------------------------------------------------------------------------
 /*
-best match retorna la posicion donde mas fusiones se logran y la cantidad
+best_match(+Grid, +Col, +MIndexes, -BestMatchIndex, -BestMatchMerges, -BestMatchMergesIndexes)
+best match retorna la posicion donde mas fusiones se logran, la cantidad, y los indices de
+los bloques con los que se logra esta fusion
 */
 
 best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, BestMatchMergesIndexes) :-
@@ -748,6 +783,7 @@ best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, BestMatchMerges
 
 
 /*
+best_match_aux(+Grid, +Col, +MIndexes, -MatchMerges, -MergesList)
 aux retorna dos listas:
 	La primera es cuantas fusiones logra cada indice
 	La segunda es una lista de con quienes (indices)
