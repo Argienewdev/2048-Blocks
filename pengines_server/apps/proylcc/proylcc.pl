@@ -216,7 +216,7 @@ fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
 	append([FinalFusionEffect], [effect(GravityGrid, [])], LoopEffect),
 	append(Acc, LoopEffect, NewAcc),
 
-	append(NewFusionIndexes, NewGravityIndexes, NewIndexes),
+	append(NewGravityIndexes, NewFusionIndexes, NewIndexes),
 
 	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects);
 	
