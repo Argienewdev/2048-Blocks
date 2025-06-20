@@ -1,4 +1,4 @@
-import { numberToColor } from './util';
+import { numberToColor, parseBigNumber } from './util';
 
 export type Position = [number, number];
 interface BlockProps {
@@ -13,7 +13,7 @@ function Block({ value, position }: BlockProps) {
             className="block"
             style={{ backgroundColor: numberToColor(value), gridRow: row + 1, gridColumn: column + 1 }}
         >
-            {value === 0 ? "" : value}
+            {value === 0 ? "" : parseBigNumber(value)}
         </div>
     );
 }
