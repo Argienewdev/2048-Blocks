@@ -67,7 +67,7 @@ es_guion('-').
 max_actual(+Grid, -Max)
 retorna el maximo actual de la grilla
 */
-max_actual(Grid, Max):- 
+max_grid(Grid, Max):- 
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Max).
 
@@ -77,7 +77,7 @@ retorna el minimo actual de la grilla
 */
 min_actual(Grid, Min):- 
 	exclude(es_guion, Grid, Numeros), 
-	max_list(Numeros, Min).
+	min_list(Numeros, Min).
 
 /*
 min_max_grid_values_permited retorna el rengo menor y mayor segun grilla, luego segun formula.
@@ -115,25 +115,52 @@ es_potencia_de_dos(N) :-
     N2 is N // 2,
     es_potencia_de_dos(N2).
 
-/*replace_all(ListaInicial,Valor,Reemplazo,Resultado)
-dada una lista inicial reemplaza cada aparicion de Valor, por un elemento deseado Reemplazo, luego retorna una lista con los valores reemplazados
+% Caso base: llegué al final de la grilla
+replace_all([], _, _, []).
+
+% Caso 1: el valor actual es numérico y menor o igual a Block, lo reemplazo
+replace_all([H|T], Block, Replacement, [Replacement|R]) :-
+    number(H), H =< Block,
+    replace_all(T, Block, Replacement, R).
+
+% Caso 2: el valor actual no es numérico o es mayor que Block, lo dejo igual
+replace_all([H|T], Block, Replacement, [H|R]) :-
+    (\+ number(H) ; H > Block),
+    replace_all(T, Block, Replacement, R).
+
+/*
+remove_block(+Grid, +Block, -GridResult)
+Dada una grilla (Grid) y un valor de bloque (Block), reemplaza todos los elementos de la grilla
+que sean numéricos y menores o iguales a Block por el guion '-', y retorna la grilla resultante (GridResult).
+Esto se utiliza, por ejemplo, para eliminar todos los bloques de menor valor tras ciertas fusiones.
 */
+remove_block(Grid, Block, GridResult) :- replace_all(Grid, Block, '-', GridResult).
 
-%caso base, llegue al final de la grilla
-replace_all([],_,_,[]).
-%caso 1, el valor actual es el que quiero reemplazar, sigo rearmando la lista pero en vez de el usar valor uso reemplazo
-replace_all([Value|T], Value, Replacement, [Replacement|R]):- 
-	replace_all(T,Value,Replacement, R).
-%caso 2, el valor actual no es el que quiero reemplazar, sigo rearmando la lista con el mismo valor,
-replace_All([H|T], Value, Replacement, [H|R]):-
-	 H \= Value, replace_all(T, Value, Replacement, R).
+% evaluate_elimination(+Previous_Grid, +FinalGrid, -BlockToRemove)
+% Este predicado determina si corresponde eliminar un bloque mínimo tras una jugada,
+% y calcula cuál debe eliminarse según la lógica del juego.
+evaluate_elimination(Previous_Grid, FinalGrid, BlockToRemove) :-
+    max_grid(Previous_Grid, MaxAnterior), 
+    max_grid(FinalGrid, MaxFinal),     
+    MaxFinal >= 1024,                    
+    MaxFinal > MaxAnterior,                
+    min_max_grid_values_permited(MaxFinal, BlockToRemoveBeforeDivision, _), 
+    BlockToRemove is BlockToRemoveBeforeDivision / 2.
 
-%TODO: Nadie llama a remove_min, tener en cuenta que cuando es llamado, hay
-%que tomar la lista de bloques que se movieron y practicar fusion en cada uno
-remove_min(Grid, Col, GravityGrid):- 
-	min_actual(Grid, Min),
-	replace_all(Grid, Min, -, GridRemoved),
-	block_fall(GridRemoved, Col, GravityGrid, _Movements).
+% apply_deletes_and_merges(+InsertGrid, +FinalGrid, +Col, +TempEffects, -Effects)
+% Si corresponde eliminar el mínimo, elimina los bloques, aplica gravedad y fusiones, y concatena los efectos.
+% Si no corresponde, Effects = TempEffects.
+apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects) :-
+    ( evaluate_elimination(InsertGrid, FinalGrid, BlockToRemove) ->
+        ( remove_block(FinalGrid, BlockToRemove, GridResult) ->
+            % Obtiene todos los índices de la grilla resultante para aplicar gravedad/fusiones globalmente
+            findall(I, nth0(I, GridResult, _), AllIndexes),
+            fusion_admin(GridResult, Col, AllIndexes, EfectosFusionesPostEliminacion),
+            append(TempEffects, [effect(GridResult, [])|EfectosFusionesPostEliminacion], Effects)
+        ;   Effects = TempEffects
+        )
+    ;   Effects = TempEffects
+    ).
 
 /*
 randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego.
@@ -143,7 +170,7 @@ por ultimo crea una lista de potencias de dos que esten dentro del rango y elige
 */
 
 randomBlock(Grid, Block):-
-	max_actual(Grid, MaxAct), 
+	max_grid(Grid, MaxAct), 
 	min_max_grid_values_permited(MaxAct, Min, Max),
 	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
 	random_member(Block, Potencias).
@@ -175,17 +202,21 @@ cuando ya esta calculada, este procede del siguiente modo:
 */
 
 shoot(Block, Lane, Grid, Col, Effects) :-
-	gridSize(_), !,
-	block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-	fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
-	append([effect(InsertGrid, [])], FEffects, Effects).
+    gridSize(_), !,
+    block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
+    fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
+    append([effect(InsertGrid, [])], FEffects, TempEffects),
+    last(TempEffects, effect(FinalGrid, _)),
+    apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects).
 
 shoot(Block, Lane, Grid, Col, Effects) :-
-	length(Grid, GridSize),
-	assert(gridSize(GridSize)), !,
-	block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-	fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
-	append([effect(InsertGrid, [])], FEffects, Effects).
+    length(Grid, GridSize),
+    assert(gridSize(GridSize)), !,
+    block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
+    fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
+    append([effect(InsertGrid, [])], FEffects, TempEffects),
+    last(TempEffects, effect(FinalGrid, _)),
+    apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
 
@@ -700,7 +731,7 @@ Este predicado calcula el nuevo valor del bloque a fusionar, basado en el bloque
 cantidad de bloques con los que se va a fusionar.
 */
 
-new_block_value(BlockValue, Matches, NewBlockValue) :-
+new_block_value(BlockValue, Matches, NewBlockValue) :- 
 	NewBlockValue is BlockValue * (2 ** Matches).
 
 %-------------------------------------------------------------------------------------------
@@ -727,7 +758,8 @@ fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [BlockMatchIndex]) :-
 	new_block_value(BlockValue, Matches, NewBlockValue),
 	replace_at_index(Grid, BlockMatchIndex, NewBlockValue, RGrid),
 	replace_at_index(MIndexes, BestMatchIndex, Index, BlocksToRemoveIndexes),
-	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid).
+	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid)
+	.
 
 %Caso 2: Caso merge sobre INDEX
 fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [Index]) :-
