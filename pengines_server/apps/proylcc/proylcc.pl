@@ -7,35 +7,40 @@
 :- use_module(library(arithmetic)).
 
 :- dynamic gridSize/1.
-
 /*
 TESTING: PARA NO TENER QUE HACER SHOOT TODO EL TIEMPO
 TODO: BORRAR ANTES DE ENTREGAR
 */
-%gridSize(35).
+gridSize(35).
 
 /*
-DUDAS:
+DUDAS RESPONDIDAS:
 	-En el caso de que una LANE este completamente ocupada, debemos contemplar
 	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura 
-	entre los bloques. ASUMO QUE EL USUARIO NO VA A HACER TAL COSA
+	entre los bloques. 
+	+ ASUMO QUE EL USUARIO NO VA A HACER TAL COSA
 
 	-Se puede modificar la consulta que hace game a proylcc para implementar el powerup que 
-	te permite ver el bloque proximo a disparar? SI, PERO NO ES NECESARIO
+	te permite ver el bloque proximo a disparar? 
+	+ SI, PERO NO ES NECESARIO
 
 	-Que tan especificos hay que ser cuando describimos los predicados que definimos?
-	RTA: SIRVE DEFINIR LOS COMENTARIOS, SOLO SI NO SON COSAS EVIDENTES.
-	RTA: HAY QUE HACER INFORME
+	+ SIRVE DEFINIR LOS COMENTARIOS, SOLO SI NO SON COSAS EVIDENTES.
+	+ HAY QUE HACER INFORME
 
-	-Hay que implementar el "game over"? OPCIONAL
+	-Hay que implementar el "game over"? 
+	+ OPCIONAL
 
 	-Explica mejor el booster hint
-	POR COLUMNA, CUAL SERIA EL BLOQUE MAXIMO CONSEGUIDO Y EL COMBO. GRIS ESCRITO AL PIE O AL TECHO DE LA COLUMNA
-	COMBO A PARTIR DE X3? A ELEGIR Y ESPECIFICAR. EL COMBO ES CUANTAS FUSIONES SE LOGRARON.
+	+ POR COLUMNA, CUAL SERIA EL BLOQUE MAXIMO CONSEGUIDO Y EL COMBO. GRIS ESCRITO AL PIE O AL TECHO DE LA COLUMNA
+	  COMBO A PARTIR DE X3? A ELEGIR Y ESPECIFICAR. EL COMBO ES CUANTAS FUSIONES SE LOGRARON.
 
+	DUDAS PENDIENTES:
+	-Se permite hacer un predicado sin acumuladores que llame a una version de si mismo con
+	acumuladores? (En mi caso, los llamo aux) Se pueden llamar igual? (PROLOG lo permite)
 */
 
-%Predicados auxiliares:
+%-------------------------------------------------------------------------------------------
 
 /*
 conditional_replace_at_index(+Index, +List, +OldElement, +NewElement, -ResultList)
@@ -49,6 +54,8 @@ conditional_replace_at_index(Index, [Head|Tail], OldElement, NewElement, [Head|R
     NewIndex is Index - 1,
     conditional_replace_at_index(NewIndex, Tail, OldElement, NewElement, ResultTail).
 
+%-------------------------------------------------------------------------------------------
+
 /*
 replace_at_index(+List, +Index, +Element, -ResultList)
 Reemplaza un elemento por otro dado un indice en base 1.
@@ -60,8 +67,11 @@ replace_at_index([H | T], Index, Elem, [H | R]) :-
     NextIndex is Index - 1,
     replace_at_index(T, NextIndex, Elem, R).
 
+%-------------------------------------------------------------------------------------------
 
 es_guion('-').
+
+%-------------------------------------------------------------------------------------------
 
 /*
 max_actual(+Grid, -Max)
@@ -71,6 +81,8 @@ max_grid(Grid, Max):-
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Max).
 
+%-------------------------------------------------------------------------------------------
+
 /*
 min_actual(+Grid, -Min)
 retorna el minimo actual de la grilla
@@ -79,10 +91,13 @@ min_actual(Grid, Min):-
 	exclude(es_guion, Grid, Numeros), 
 	min_list(Numeros, Min).
 
+%-------------------------------------------------------------------------------------------
+
 /*
 min_max_grid_values_permited retorna el rengo menor y mayor segun grilla, luego segun formula.
 min_max_grid_values_permited(MaxActual, MinPermitido, MaxPermitido)
 */
+
 min_max_grid_values_permited(Max, 2, 4) :- member(Max, [2,4,8]), !.
 min_max_grid_values_permited(16, 2, 8) :- !.
 min_max_grid_values_permited(32, 2, 16) :- !.
@@ -105,6 +120,8 @@ min_max_grid_values_permited(MaxAct, MinPerm, MaxPerm) :-
     MinPerm is 2 ** ExpMin,
     MaxPerm is 2 ** ExpMax.
 
+%-------------------------------------------------------------------------------------------
+
 %Retorna true si se trata de una potencia de 2
 es_potencia_de_dos(1). 
 
@@ -115,18 +132,28 @@ es_potencia_de_dos(N) :-
     N2 is N // 2,
     es_potencia_de_dos(N2).
 
+%-------------------------------------------------------------------------------------------
+
 % Caso base: llegué al final de la grilla
 replace_all([], _, _, []).
 
 % Caso 1: el valor actual es numérico y menor o igual a Block, lo reemplazo
 replace_all([H|T], Block, Replacement, [Replacement|R]) :-
-    number(H), H =< Block,
+    number(H),
+	H =< Block, !,
     replace_all(T, Block, Replacement, R).
 
 % Caso 2: el valor actual no es numérico o es mayor que Block, lo dejo igual
 replace_all([H|T], Block, Replacement, [H|R]) :-
-    (\+ number(H) ; H > Block),
+    \+ number(H), !,
     replace_all(T, Block, Replacement, R).
+
+replace_all([H|T], Block, Replacement, [H|R]) :-
+	number(H),
+    H > Block, !,
+    replace_all(T, Block, Replacement, R).
+
+%-------------------------------------------------------------------------------------------
 
 /*
 remove_block(+Grid, +Block, -GridResult)
@@ -134,33 +161,38 @@ Dada una grilla (Grid) y un valor de bloque (Block), reemplaza todos los element
 que sean numéricos y menores o iguales a Block por el guion '-', y retorna la grilla resultante (GridResult).
 Esto se utiliza, por ejemplo, para eliminar todos los bloques de menor valor tras ciertas fusiones.
 */
-remove_block(Grid, Block, GridResult) :- replace_all(Grid, Block, '-', GridResult).
+remove_block(Grid, Block, GridResult) :- 
+	replace_all(Grid, Block, '-', GridResult).
+
+%-------------------------------------------------------------------------------------------
 
 % evaluate_elimination(+Previous_Grid, +FinalGrid, -BlockToRemove)
 % Este predicado determina si corresponde eliminar un bloque mínimo tras una jugada,
 % y calcula cuál debe eliminarse según la lógica del juego.
 evaluate_elimination(Previous_Grid, FinalGrid, BlockToRemove) :-
-    max_grid(Previous_Grid, MaxAnterior), 
-    max_grid(FinalGrid, MaxFinal),     
-    MaxFinal >= 1024,                    
-    MaxFinal > MaxAnterior,                
-    min_max_grid_values_permited(MaxFinal, BlockToRemoveBeforeDivision, _), 
+    max_grid(Previous_Grid, MaxAnterior),
+    max_grid(FinalGrid, MaxFinal),
+    MaxFinal >= 1024,
+    MaxFinal > MaxAnterior,
+    min_max_grid_values_permited(MaxFinal, BlockToRemoveBeforeDivision, _),
     BlockToRemove is BlockToRemoveBeforeDivision / 2.
 
-% apply_deletes_and_merges(+InsertGrid, +FinalGrid, +Col, +TempEffects, -Effects)
+%-------------------------------------------------------------------------------------------
+
+% apply_deletes_and_merges(+InsertGrid, +FinalGrid, +Col, -Effects)
 % Si corresponde eliminar el mínimo, elimina los bloques, aplica gravedad y fusiones, y concatena los efectos.
-% Si no corresponde, Effects = TempEffects.
-apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects) :-
-    ( evaluate_elimination(InsertGrid, FinalGrid, BlockToRemove) ->
-        ( remove_block(FinalGrid, BlockToRemove, GridResult) ->
-            % Obtiene todos los índices de la grilla resultante para aplicar gravedad/fusiones globalmente
-            findall(I, nth0(I, GridResult, _), AllIndexes),
-            fusion_admin(GridResult, Col, AllIndexes, EfectosFusionesPostEliminacion),
-            append(TempEffects, [effect(GridResult, [])|EfectosFusionesPostEliminacion], Effects)
-        ;   Effects = TempEffects
-        )
-    ;   Effects = TempEffects
-    ).
+apply_deletes_and_merges(InsertGrid, FinalGrid, Col, Effects) :-
+    evaluate_elimination(InsertGrid, FinalGrid, BlockToRemove),
+	remove_block(FinalGrid, BlockToRemove, GridResult),
+	% Obtiene todos los índices de la grilla resultante para aplicar gravedad/fusiones globalmente
+	(block_fall(GridResult, Col, GravityGrid, Movements) ->
+
+	fusion_admin(GravityGrid, Col, Movements, FusionEffects),
+	append([effect(GravityGrid, [])], FusionEffects, Effects);
+
+	Effects = [effect(GridResult, [])]).
+
+%-------------------------------------------------------------------------------------------
 
 /*
 randomBlock se encarga de, dada una grilla, retornar un numero aleatorio valido dadas las reglas del juego.
@@ -175,6 +207,7 @@ randomBlock(Grid, Block):-
 	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
 	random_member(Block, Potencias).
 
+%-------------------------------------------------------------------------------------------
 
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
@@ -194,11 +227,11 @@ randomBlock(Grid, Block):-
  * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
  * a esa ultima pide un bloque random para seguir jugando.
 
-shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla
-cuando ya esta calculada, este procede del siguiente modo:
-	block insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
+shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.
+Luego, este procede del siguiente modo:
+	block_insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
 	fusion_admin: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
-	append: junto los efectos para retornarlos
+	append: junta los efectos para retornarlos
 */
 
 shoot(Block, Lane, Grid, Col, Effects) :-
@@ -207,7 +240,9 @@ shoot(Block, Lane, Grid, Col, Effects) :-
     fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
     append([effect(InsertGrid, [])], FEffects, TempEffects),
     last(TempEffects, effect(FinalGrid, _)),
-    apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects).
+    (apply_deletes_and_merges(InsertGrid, FinalGrid, Col, PostDeletesMergesEffects) ->
+	append(TempEffects, PostDeletesMergesEffects, Effects);
+	Effects = TempEffects).
 
 shoot(Block, Lane, Grid, Col, Effects) :-
     length(Grid, GridSize),
@@ -216,13 +251,14 @@ shoot(Block, Lane, Grid, Col, Effects) :-
     fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
     append([effect(InsertGrid, [])], FEffects, TempEffects),
     last(TempEffects, effect(FinalGrid, _)),
-    apply_deletes_and_merges(InsertGrid, FinalGrid, Col, TempEffects, Effects).
-
-%-------------------------------------------------------------------------------------------
+    (apply_deletes_and_merges(InsertGrid, FinalGrid, Col, PostDeletesMergesEffects) ->
+	append(TempEffects, PostDeletesMergesEffects, Effects);
+	Effects = TempEffects).
 
 %-------------------------------------------------------------------------------------------
 
 /*
+fusion_admin(+Grid, +Col, +Indexes, -Effects)
 Fusion admin retornara una lista de efectos una vez terminadas todas las fusiones
 Fusion admin usa un auxiliar para "otorgarse" un acumulador para los efectos
 */
@@ -230,6 +266,7 @@ fusion_admin(Grid, Col, Indexes, Effects) :-
 	fusion_admin_aux(Grid, Col, Indexes, [], Effects).
 
 /*
+fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects)
 Fusion admin aux funcionara de la siguiente manera
 	fusion loop: se encarga de llevar a cabo todas las fusiones simultaneas y retorna el ultimo
 	efecto junto con todos los bloques nuevos que se crearon y todos los nuevos indices de bloques
@@ -249,45 +286,51 @@ fusion_admin_aux(_Grid, _Col, [], Acc, Acc):- !.
 fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
 	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes),
 	(block_fall(LastGrid, Col, GravityGrid, NewGravityIndexes) ->
-
-	append([FinalFusionEffect], [effect(GravityGrid, [])], LoopEffect),
+	
+	append(FinalFusionEffect, [effect(GravityGrid, [])], LoopEffect),
 	append(Acc, LoopEffect, NewAcc),
-
+	
 	append(NewGravityIndexes, NewFusionIndexes, NewIndexes),
-
+	
 	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects);
 	
-	append(Acc, [FinalFusionEffect], NewAcc),
-
+	append(Acc, FinalFusionEffect, NewAcc),
+	
 	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects)), !.
 
+%-------------------------------------------------------------------------------------------
+
 /*
+fusion_loop(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, -NewIndexes)
 fusion loop usa auxiliares para otorgar acumuladores
 */
-/*
-TODO: Ver si esto realmente sirve o ya no
-fusion_loop(Grid, Col, Indexes, FusionEffects, LastGrid, []) :-
-	fusion_loop_aux(Grid, Col, Indexes, FusionEffects, LastGrid, [], [], []), !.
-*/
 
-fusion_loop(Grid, Col, Indexes, FusionEffects, LastGrid, NewIndexes) :-
-	fusion_loop_aux(Grid, Col, Indexes, FusionEffects, LastGrid, [], [], NewIndexes).
+fusion_loop(Grid, Col, Indexes, [], LastGrid, NewIndexes) :-
+	fusion_loop_aux(Grid, Col, Indexes, effect(Grid, _), LastGrid, [], [], NewIndexes), !.
+
+fusion_loop(Grid, Col, Indexes, [FinalFusionEffect], LastGrid, NewIndexes) :-
+	fusion_loop_aux(Grid, Col, Indexes, FinalFusionEffect, LastGrid, [], [], NewIndexes).
 
 /*
+fusion_loop_aux(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, +NewBlocksAcc, +NewIndexesAcc, -NewIndexes)
 fusion loop aux funciona de la siguiente manera:
+	Para cada indice a revisar, se lleva a cabo una fusion.
+	Si esta fusion es exitosa, se almacena el indice resultante y los nuevos bloques formados.
+	Luego se llama recursivamente hasta que no hayan mas indices para revisar.
 
+	En caso de que la fusion falle, se desecha dicho indice y se sigue adelante con el resto.
 */
 
 fusion_loop_aux(Grid, _Col, [], effect(Grid, Acc), Grid, Acc, NewIndexesAcc, NewIndexesAcc) :- !.
 
 /*
-En caso de que no haya fusion no puede dar falso, entonces necesito que en ese
-caso deseche el indice y siga, pero si no hago esta implicacion, debo evaluar por falla
+En caso de que no haya fusion, da falso, entonces necesito que en ese
+caso deseche el indice y siga, por eso se hace esta implicacion. Sino, deberia evaluar por falla
 al predicado fusion, lo que seria una perdida de tiempo porque ya fue evaluado.
 */
 
 fusion_loop_aux(Grid, Col, [X | Xs], FinalFusionEffect, LastGrid, Acc, NewIndexesAcc, NewIndexes) :-
-	(fusion(Grid, Col, X, FGrid, NewBlocksAfterFusion, NewIndex) ->
+	(fusion(Grid, Col, X, FGrid, NewIndexesAcc, NewBlocksAfterFusion, NewIndex) ->
 	append(NewIndex, NewIndexesAcc, NextNewIndexesAcc),
 	append([NewBlocksAfterFusion], Acc, NewAcc),
 	fusion_loop_aux(FGrid, Col, Xs, FinalFusionEffect, LastGrid, NewAcc, NextNewIndexesAcc, NewIndexes);
@@ -296,13 +339,12 @@ fusion_loop_aux(Grid, Col, [X | Xs], FinalFusionEffect, LastGrid, Acc, NewIndexe
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /*
 block_insert(+Block, +Lane, +Grid, +Col, -InsertGrid, -InsertIndex)
 es una simplificacion de block insert aux, el cual es llamado con la fila
 inicializada en 0.
 */
+
 block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex) :-
 	block_insert_aux(Block, Lane, Grid, 0, Col, InsertGrid, InsertIndex).
 
@@ -315,6 +357,7 @@ Caso LANE ocupada completamente: Retorna la misma grilla sin cambios (Problema: 
 Caso recursivo 1: Se verifica la primera fila y se inserta el elemento si se puede
 Caso recursivo 2: Se verifica la proxima fila hasta llegar al limite (caso base)
 */
+
 block_insert_aux(Block, Lane, Grid, DRow, Col, InsertGrid, InsertIndex) :-
 	%DRow: "Diminished Row" o "Fila disminuida" hace referencia a la anteultima fila
 	gridSize(GridLength), 
@@ -338,8 +381,6 @@ block_insert_aux(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 block_insert_aux(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 	NextRow is (Row + 1),
 	block_insert_aux(Block, Lane, Grid, NextRow, Col, InsertGrid, InsertIndex).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -367,8 +408,6 @@ block_fall(Grid, Col, GravityGrid, Movements) :-
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /*
 process_columns(+GridIn, +TotalCols, -GridOut, -Movements)
 process_columns recorre la grilla extrayendo, organizando y reinsertando columnas una a una
@@ -391,8 +430,6 @@ process_columns_aux(Index, TotalCols, GridIn, GridOut, Acc, Movements) :-
     NextIndex is Index + 1,
 	append(MovementsHead, Acc, NewAcc),
     process_columns_aux(NextIndex, TotalCols, NextGrid, GridOut, NewAcc, Movements).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -422,8 +459,6 @@ separate_scores([H|T], [H|Hs], Scores) :-
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /*
 extract_column(+Grid, +ColIndex, +NumCols, +Row, -ExtractedColumn)
 extract_column calcula que posiciones de la grilla pertenecen a la columna que se le 
@@ -447,8 +482,6 @@ extract_column(Grid, ColIndex, NumCols, NumRows, [Elem | Rest]) :-
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /*
 reinsert_column(+GridIn, +ColIndex, +NumCols, +Row, +ColumnToInsert, -GridOut)
 reinsert_column, dada una columna a reinsertar, la grilla, y el indice de dicha columna (basado en 0),
@@ -468,8 +501,6 @@ reinsert_column(GridIn, ColIndex, NumCols, Row, [Elem | Rest], GridOut) :-
     replace_at_index(GridIn, Index, Elem, GridNext),
     NextRow is Row + 1,
     reinsert_column(GridNext, ColIndex, NumCols, NextRow, Rest, GridOut).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -497,8 +528,6 @@ find_movements(Iteration, [X | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [Inde
 find_movements(Iteration, [_X | Xs], [_Y | Ys], TotalColumns, ColumnToCheck, Movements) :-
 	NextIteration is Iteration + 1,
 	find_movements(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Movements).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -543,17 +572,18 @@ Logica para fusiones:
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /*
-check_Position(+Grid, +Col, +Index, -Matches, -MIndexes)
+check_Position(+Grid, +Col, +Index, +InvalidIndexes, -Matches, -MIndexes)
 este predicado se encarga de, dada una grilla, la cantidad de columnas y una posicion, revisar
 sus celdas adyacentes para saber cuantas son fusionables y cuales son sus posiciones
-Matches es la cantidad de celdas adyacentes fusionables 
+Matches es la cantidad de celdas adyacentes fusionables
+ 
 MIndexes son los indices de estas celdas fusionables
+
+InvalidIndexes son indices de bloques no habilitados para fusion
 */
 
-check_position(Grid, Col, Index, Matches, MIndexes) :-
+check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexesResult) :-
 	valid_index(Grid, Index),
 	check_right(Grid, Col, Index, RightMatch, RightIndex),
 	check_left(Grid, Col, Index, LeftMatch, LeftIndex),
@@ -562,10 +592,32 @@ check_position(Grid, Col, Index, Matches, MIndexes) :-
 	append(LeftIndex, RightIndex, RLIndex),
 	append(TopIndex, BottomIndex, TBIndex),
 	append(RLIndex, TBIndex, MIndexes),
-	Matches is RightMatch + LeftMatch + BottomMatch + TopMatch.
-%-------------------------------------------------------------------------------------------
+	diff_set(MIndexes, InvalidIndexes, MIndexesResult, Removed),
+	Matches is RightMatch + LeftMatch + BottomMatch + TopMatch - Removed.
 
 %-------------------------------------------------------------------------------------------
+
+/*
+diff_set(+List1, +List2, -Result, -RemovedCounter)
+Este predicado encuentra la diferencia entre dos conjuntos y retorna la cantidad
+de elementos que eran comunes entre los dos.
+Su uso sera desechar indices invalidos de una lista de indices en principio
+hayados y considerados validos.
+*/
+
+diff_set([], _, [], 0) :- !.
+
+diff_set([X|Xs], Ys, [X|RList], Removed) :-
+	\+ member(X, Ys), !, % Si X no está en Ys, se conserva
+	diff_set(Xs, Ys, RList, Removed).
+
+diff_set([X|Xs], Ys, RList, Removed) :-
+    member(X, Ys), !, % Si X está en Ys, se elimina
+    diff_set(Xs, Ys, RList, RecursiveRemoved),
+    Removed is RecursiveRemoved + 1.
+
+%-------------------------------------------------------------------------------------------
+
 /*
 valid_index(+Grid, +Index)
 Este predicado verifica que el indice apunte a un numero y no a un guion
@@ -575,7 +627,6 @@ valid_index(Grid, Index) :-
 	Element \= '-'.
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
 /*
 check_right(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de la derecha coincide
@@ -595,8 +646,6 @@ check_right(Grid, _Col, Index, 0, []) :-
 	nth0(RightBlockIndex, Grid, RightBlockValue),
 	nth0(Index, Grid, BlockValue),
 	RightBlockValue \= BlockValue.
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 /*
@@ -620,8 +669,6 @@ check_left(Grid, _Col, Index, 0, []) :-
 	LeftBlockValue \= BlockValue.
 
 %-------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------------------
 /*
 check_bottom(+Grid, +Col, +Index, -Match, -BlockIndex)
 Este predicado verifica si el bloque de abajo coincide
@@ -641,8 +688,6 @@ check_bottom(Grid, Col, Index, 0, []) :-
 	nth0(BottomBlockIndex, Grid, BottomBlockValue),
 	nth0(Index, Grid, BlockValue),
 	BottomBlockValue \= BlockValue.
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 /*
@@ -666,8 +711,6 @@ check_top(Grid, Col, Index, 0, []) :-
 	TopBlockValue \= BlockValue.
 
 %-------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------------------
 /* 
 first_column(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
@@ -679,8 +722,6 @@ first_column(Col, Index) :-
 	Index > 0,
 	NextIndex is Index - Col,
 	first_column(Col, NextIndex).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 /* 
@@ -697,8 +738,6 @@ last_column(Col, Index) :-
 	last_column(Col, NextIndex).
 
 %-------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------------------
 /* 
 first_row(+Col, +Index)
 Este predicado verifica si la posicion pasada por 
@@ -706,8 +745,6 @@ parametro pertenece a la primera fila
 */
 first_row(Col, Index) :-
 	Index < Col.
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -723,8 +760,6 @@ last_row(Col, Index) :-
 
 %-------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------------------
-
 /* 
 new_block_value(+BlockValue, +Matches, -NewBlockValue)
 Este predicado calcula el nuevo valor del bloque a fusionar, basado en el bloque y la 
@@ -735,19 +770,20 @@ new_block_value(BlockValue, Matches, NewBlockValue) :-
 	NewBlockValue is BlockValue * (2 ** Matches).
 
 %-------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------------------
 /*
-fusion(+Grid, +Col, +Index, -FGrid, -NewBlock, -ResultIndex)
+fusion(+Grid, +Col, +Index, +InvalidIndexes,-FGrid, -NewBlock, -ResultIndex)
 fusion se encarga de llevar a cabo las fusiones, puede dar falso
 Retorna una grilla resultante, una estructura tipo newBlock con el nuevo bloque
 y el indice de donde se termino la fusion
+
+InvalidIndexes es una lista de indices de bloques que fueron creados en el mismo
+ciclo de fusiones, por lo que no tienen que ser tomados en cuenta como validos para fusion.
 */
 
 %Caso 1: Hay una unica fusion posible, arriba
-fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [BlockMatchIndex]) :-
-	check_position(Grid, Col, Index, Matches, MIndexes),
-	best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [BlockMatchIndex]) :-
+	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
+	best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches == BestMatchMerges,
 	Matches == 1,
 	%Uso last porque si hay fusion posible arriba su posicion es la ultima
@@ -758,13 +794,12 @@ fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [BlockMatchIndex]) :-
 	new_block_value(BlockValue, Matches, NewBlockValue),
 	replace_at_index(Grid, BlockMatchIndex, NewBlockValue, RGrid),
 	replace_at_index(MIndexes, BestMatchIndex, Index, BlocksToRemoveIndexes),
-	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid)
-	.
+	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid).
 
 %Caso 2: Caso merge sobre INDEX
-fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [Index]) :-
-	check_position(Grid, Col, Index, Matches, MIndexes),
-	best_match(Grid, Col, MIndexes, _BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [Index]) :-
+	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
+	best_match(Grid, Col, MIndexes, InvalidIndexes, _BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches >= BestMatchMerges, !,
 	nth0(Index, Grid, BlockValue),
 	new_block_value(BlockValue, Matches, NewBlockValue),
@@ -772,17 +807,15 @@ fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [Index]) :-
 	remove_merged(RGrid, MIndexes, FGrid).
 
 %Caso 3: Caso merge sobre la mejor opcion
-fusion(Grid, Col, Index, FGrid, newBlock(NewBlockValue), [BestMatchIndexOnGrid]) :-
-	check_position(Grid, Col, Index, Matches, MIndexes),
-	best_match(Grid, Col, MIndexes, BestMatchIndexOnMIndexes, BestMatchMerges, BestMatchMergesIndexes),
-	Matches < BestMatchMerges,
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [BestMatchIndexOnGrid]) :-
+	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
+	best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndexOnMIndexes, BestMatchMerges, BestMatchMergesIndexes),
+	Matches < BestMatchMerges, !,
 	nth0(BestMatchIndexOnMIndexes, MIndexes, BestMatchIndexOnGrid),
 	nth0(BestMatchIndexOnGrid, Grid, BlockValue),
 	new_block_value(BlockValue, BestMatchMerges, NewBlockValue),
 	replace_at_index(Grid, BestMatchIndexOnGrid, NewBlockValue, RGrid),
 	remove_merged(RGrid, BestMatchMergesIndexes, FGrid).
-
-%-------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------------------
 
@@ -799,37 +832,34 @@ remove_merged(Grid, [X | Xs], RGrid) :-
 	remove_merged(NextGrid, Xs, RGrid).
 
 %-------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------------------
 /*
-best_match(+Grid, +Col, +MIndexes, -BestMatchIndex, -BestMatchMerges, -BestMatchMergesIndexes)
+best_match(+Grid, +Col, +MIndexes, +InvalidIndexes, -BestMatchIndex, -BestMatchMerges, -BestMatchMergesIndexes)
 best match retorna la posicion donde mas fusiones se logran, la cantidad, y los indices de
 los bloques con los que se logra esta fusion
 */
 
-best_match(Grid, Col, MIndexes, BestMatchIndex, BestMatchMerges, BestMatchMergesIndexes) :-
-	best_match_aux(Grid, Col, MIndexes, MatchMerges, MergesList),
+best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndex, BestMatchMerges, BestMatchMergesIndexes) :-
+	best_match_aux(Grid, Col, MIndexes, InvalidIndexes, MatchMerges, MergesList),
 	max_list(MatchMerges, BestMatchMerges),
 	nth0(BestMatchIndex, MatchMerges, BestMatchMerges),
 	nth0(BestMatchIndex, MergesList, BestMatchMergesIndexes), !.
 
 
 /*
-best_match_aux(+Grid, +Col, +MIndexes, -MatchMerges, -MergesList)
+best_match_aux(+Grid, +Col, +MIndexes, +InvalidIndexes, -MatchMerges, -MergesList)
 aux retorna dos listas:
 	La primera es cuantas fusiones logra cada indice
 	La segunda es una lista de con quienes (indices)
 */
-best_match_aux(Grid, Col, [X], [Y], [MIndexes]) :-
-	check_position(Grid, Col, X, Y, MIndexes), !.
+best_match_aux(Grid, Col, [X], InvalidIndexes, [Y], [MIndexes]) :-
+	check_position(Grid, Col, X, InvalidIndexes, Y, MIndexes), !.
 
-best_match_aux(Grid, Col, [X], [_Y | Ys], [_Z | MIndexes]) :-
-	check_position(Grid, Col, X, Ys, MIndexes), !.
+best_match_aux(Grid, Col, [X], InvalidIndexes, [_Y | Ys], [_Z | MIndexes]) :-
+	check_position(Grid, Col, X, InvalidIndexes, Ys, MIndexes), !.
 
-best_match_aux(Grid, Col, [X | Xs], [Y | Ys], [MIndexes | MIndexes2]) :-
-	check_position(Grid, Col, X, Y, MIndexes),
-	best_match_aux(Grid, Col, Xs, Ys, MIndexes2), !.
+best_match_aux(Grid, Col, [X | Xs], InvalidIndexes, [Y | Ys], [MIndexes | MIndexes2]) :-
+	check_position(Grid, Col, X, InvalidIndexes, Y, MIndexes),
+	best_match_aux(Grid, Col, Xs, InvalidIndexes, Ys, MIndexes2), !.
 
-%-------------------------------------------------------------------------------------------
-
+%------------------------------------------------------------------------------------------
 %-------------------------------------------------------------------------------------------
