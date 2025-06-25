@@ -77,3 +77,45 @@ body {
 .blockShoot>div {
   flex-grow: 1;
 }
+
+.powerUp1{
+  border-radius: 50%;
+  height: 70px;
+  width:  70px;
+  margin-right: 30px;
+}
+
+.combo-notification {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -40%);
+  background-color: transparent;
+  color: white;
+  padding: 20px 40px;
+  border-radius: 10px;
+  font-size: 32px;
+  font-weight: bold;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+  pointer-events: none;
+}
+
+.combo-notification.show {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+
+.combo-notification.fade-out {
+  opacity: 0;
+  transform: translate(-50%, -60%);
+}
+
+.powerUp2{
+  border-radius: 50%;
+  height: 70px;
+  width:  70px;
+  margin-left: 30px;
+} 
+
