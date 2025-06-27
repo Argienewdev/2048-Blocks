@@ -134,35 +134,26 @@ es_potencia_de_dos(N) :-
 
 %-------------------------------------------------------------------------------------------
 
-% Caso base: llegué al final de la grilla
-replace_all([], _, _, []).
-
-% Caso 1: el valor actual es numérico y menor o igual a Block, lo reemplazo
-replace_all([H|T], Block, Replacement, [Replacement|R]) :-
-    number(H),
-	H =< Block, !,
-    replace_all(T, Block, Replacement, R).
-
-% Caso 2: el valor actual no es numérico o es mayor que Block, lo dejo igual
-replace_all([H|T], Block, Replacement, [H|R]) :-
-    \+ number(H), !,
-    replace_all(T, Block, Replacement, R).
-
-replace_all([H|T], Block, Replacement, [H|R]) :-
-	number(H),
-    H > Block, !,
-    replace_all(T, Block, Replacement, R).
-
-%-------------------------------------------------------------------------------------------
-
 /*
-remove_block(+Grid, +Block, -GridResult)
+remove_block(+Block, +Grid, -NewGrid, -Indexes)
 Dada una grilla (Grid) y un valor de bloque (Block), reemplaza todos los elementos de la grilla
 que sean numéricos y menores o iguales a Block por el guion '-', y retorna la grilla resultante (GridResult).
 Esto se utiliza, por ejemplo, para eliminar todos los bloques de menor valor tras ciertas fusiones.
 */
-remove_block(Grid, Block, GridResult) :- 
-	replace_all(Grid, Block, '-', GridResult).
+
+remove_block(Block, Grid, NewGrid, Indexes) :-
+    remove_block_aux(Block, '-', Grid, 0, NewGrid, [], Indexes).
+
+remove_block_aux(_, _, [], _, [], Acc, Acc) :- !.
+
+remove_block_aux(Block, Repl, [Block|T], I, [Repl|NT], Acc, Indexes) :-
+    I1 is I + 1, !,
+    remove_block_aux(Block, Repl, T, I1, NT, [I|Acc], Indexes).
+
+remove_block_aux(Block, Repl, [H|T], I, [H|NT], Acc, Indexes) :-
+    Block \= H,
+    I1 is I + 1, !,
+    remove_block_aux(Block, Repl, T, I1, NT, Acc, Indexes).
 
 %-------------------------------------------------------------------------------------------
 
@@ -181,16 +172,19 @@ evaluate_elimination(Previous_Grid, FinalGrid, BlockToRemove) :-
 
 % apply_deletes_and_merges(+InsertGrid, +FinalGrid, +Col, -Effects)
 % Si corresponde eliminar el mínimo, elimina los bloques, aplica gravedad y fusiones, y concatena los efectos.
+
 apply_deletes_and_merges(InsertGrid, FinalGrid, Col, Effects) :-
     evaluate_elimination(InsertGrid, FinalGrid, BlockToRemove),
-	remove_block(FinalGrid, BlockToRemove, GridResult),
+	remove_block(BlockToRemove, FinalGrid, GridResult, RemovedIndexes),
+	get_columns_to_check(RemovedIndexes, Col, ColumnsToCheck),
 	% Obtiene todos los índices de la grilla resultante para aplicar gravedad/fusiones globalmente
-	(block_fall(GridResult, Col, GravityGrid, Movements) ->
-
+	(block_fall(GridResult, Col, ColumnsToCheck, GravityGrid, Movements) ->
+	
 	fusion_admin(GravityGrid, Col, Movements, FusionEffects),
-	append([effect(GravityGrid, [])], FusionEffects, Effects);
-
+	append([effect(GridResult, []), effect(GravityGrid, [])], FusionEffects, Effects);
+	
 	Effects = [effect(GridResult, [])]).
+
 
 %-------------------------------------------------------------------------------------------
 
@@ -209,23 +203,8 @@ randomBlock(Grid, Block):-
 
 %-------------------------------------------------------------------------------------------
 
-/**
- * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
- * RGrid es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
- * en la grilla Grid, con número de columnas NumOfColumns. El número 0 representa que la celda está vacía. 
- * 
- *shoot(${shootBlock}, 
- 		${lane}, 
-		${gridS}, 
-		${numOfColumns},  
-		Effects), 
-		last(Effects, effect(RGrid,_)), 
-		
-		randomBlock(RGrid, Block)
-
- * La consulta da un bloque, en una columna, dada una grilla, de n columnas, debe retornar una lista de grillas
- * que son el paso a paso de como va cambiando la grilla. Luego pide la ultima de esas grillas y en base
- * a esa ultima pide un bloque random para seguir jugando.
+/*
+shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects)
 
 shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.
 Luego, este procede del siguiente modo:
@@ -285,7 +264,8 @@ fusion_admin_aux(_Grid, _Col, [], Acc, Acc):- !.
 
 fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
 	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes),
-	(block_fall(LastGrid, Col, GravityGrid, NewGravityIndexes) ->
+	get_columns_to_check_with_adyacent(NewFusionIndexes, Col, ColumnsToCheck),
+	(block_fall(LastGrid, Col, ColumnsToCheck, GravityGrid, NewGravityIndexes) ->
 	
 	append(FinalFusionEffect, [effect(GravityGrid, [])], LoopEffect),
 	append(Acc, LoopEffect, NewAcc),
@@ -385,51 +365,184 @@ block_insert_aux(Block, Lane, Grid, Row, Col, InsertGrid, InsertIndex) :-
 %-------------------------------------------------------------------------------------------
 
 /*
-block_fall(+Grid, +Col, -GravityGrid, -Movements)
-Block_fall implementa la gravedad, la cual hace que los bloques caigan luego de combinaciones
+block_fall(+Grid, +Col, +ColumnsToCheck, -GravityGrid, -Movements)
+Este predicado implementa la gravedad, la cual hace que los bloques de la columna donde esta index y las 
+adyacentes caigan.
 	Predicados auxiliares:
 		-Process_columns
-			-extract_column
-				-nth0 (Libreria) Retorna un elemento dado un indice en base 0
-			-sort_column
-				-separate_scores
-    		-reinsert_column
-	TODO: Block fall se puede optimizar haciendo que solo recorra las columnas alrededor de
-	las ultimas fusiones
-	TODO: Siempre retorno una grilla aunque no hayan cambios, CAMBIAR
-	TODO: Puedo evitarlo llamando a la gravedad luego de fusiones
+			-Process_columns_aux
+				-extract_column
+					-nth0 (Libreria) Retorna un elemento dado un indice en base 0
+				-sort_column
+					-separate_scores
+				-find_movements
+				-reinsert_column
 */
+
+%Si no hay movimientos, falla.
+block_fall(Grid, Col, Indexes, GridOut, _Movements) :-
+	block_fall_aux(Grid, Col, Indexes, GridOut, [], []), !, fail.
+
+%Si hubo movimientos, retorna la grilla resultante y los indices de los movimientos.
+block_fall(Grid, Col, Indexes, GridOut, Movements) :-
+	block_fall_aux(Grid, Col, Indexes, GridOut, [], Movements).
+
+%-------------------------------------------------------------------------------------------
+
+%Si me quede sin columnas para revisar, devuelvo los movimientos y la grilla resultante.
+block_fall_aux(Grid, _Col, [], Grid, Acc, Acc) :- !.
+
+%Si tengo columnas para revisar, aplico gravedad, combino listas de movimientos y sigo recursivamente.
+block_fall_aux(Grid, Col, [X | Xs], GridOut, Acc, Movements):-
+	process_column(Grid, Col, X, NewGrid, XMovements),
+	append(Acc, XMovements, NewAcc),
+	block_fall_aux(NewGrid, Col, Xs, GridOut, NewAcc, Movements).
+
+%-------------------------------------------------------------------------------------------
+/*
+get_columns_to_check(+Indexes, +TotalCols, -ColumnsToCheck)
+Es un wrapper.
+*/
+
+get_columns_to_check([], _TotalCols, []) :- !.
+
+get_columns_to_check(Indexes, TotalCols, ColumnsToCheck) :-
+	get_columns_to_check_aux(Indexes, TotalCols, [], ColumnsToCheck).
 	
-block_fall(Grid, Col, Grid, Movements) :-
-	process_columns(Grid, Col, Grid, Movements), !, fail.
+%-------------------------------------------------------------------------------------------
+/*
+get_columns_to_check(+Indexes, +TotalCols, -ColumnsToCheck)
+Es wrapper pero tambien agrega las columnas adyacentes de todas las encontradas.
+*/
+
+get_columns_to_check_with_adyacent([], _TotalCols, []) :- !.
+
+get_columns_to_check_with_adyacent(Indexes, TotalCols, ColumnsToCheck) :-
+	get_columns_to_check_aux(Indexes, TotalCols, [], PreColumnsToCheck),
+	add_adyacent_columns(PreColumnsToCheck, TotalCols, ColumnsToCheck).
 	
-block_fall(Grid, Col, GravityGrid, Movements) :-
-	process_columns(Grid, Col, GravityGrid, Movements).
+%-------------------------------------------------------------------------------------------
+
+/*
+get_columns_to_check_aux(+Indexes, +TotalColumns, +Acc, -ColumsToCheck)
+Este predicado recibe una lista de indices donde se hicieron fusiones y retorna un conjunto
+de columnas que incluyen:
+	-Las columnas donde se hicieron fusiones, sin repeticiones.
+*/
+
+get_columns_to_check_aux([], _TotalColumns, Acc, Acc) :- !.
+
+get_columns_to_check_aux([X | Xs], TotalColumns, Acc, ColumnsToCheck) :-
+	calculate_column(TotalColumns, X, Column),
+	(\+ member(Column, Acc) ->
+		append(Acc, [Column], NewAcc),
+		get_columns_to_check_aux(Xs, TotalColumns, NewAcc, ColumnsToCheck);
+
+		get_columns_to_check_aux(Xs, TotalColumns, Acc, ColumnsToCheck)).
+
+%-------------------------------------------------------------------------------------------
+/*
+add_adyacent_columns(+PreColumnsToCheck, +TotalColumns, -ColumnsToCheck)
+Es un wrapper
+*/
+
+add_adyacent_columns(PreColumnsToCheck, TotalColumns, ColumnsToCheck) :-
+	add_adyacent_columns_aux(PreColumnsToCheck, TotalColumns, PreColumnsToCheck, ColumnsToCheck).
+
+%-------------------------------------------------------------------------------------------
+/*
+add_adyacent_columns_aux(+PreColumnsToCheck, +TotalColumns, +Acc, -ColumnsToCheck)
+Dados los indices de las columnas a las que aplicar gravedad, se agregan las columnas adyacentes
+de todos estos indices y luego se verifica por posibles duplicados para removerlos.
+*/
+
+add_adyacent_columns_aux([], _TotalColumns, Acc, NewAcc) :- 
+	remove_duplicates(Acc, NewAcc), !.
+
+add_adyacent_columns_aux([X | Xs], TotalColumns, Acc, ColumnsToCheck) :-
+	add_left_column(X, Acc, NewAcc),
+	add_right_column(TotalColumns, X, NewAcc, NewNewAcc),
+	add_adyacent_columns_aux(Xs, TotalColumns, NewNewAcc, ColumnsToCheck).
+
+%-------------------------------------------------------------------------------------------
+/*
+remove_duplicates(+List, -RList)
+Dada una lista, la retorna sin duplicados.
+*/
+
+remove_duplicates([], []).
+
+remove_duplicates([H|T], [H|Result]) :-
+    \+ member(H, T),           % H no aparece en el resto
+    remove_duplicates(T, Result).
+
+remove_duplicates([H|T], Result) :-
+    member(H, T),             % H aparece de nuevo más adelante
+    remove_duplicates(T, Result).
+
+%-------------------------------------------------------------------------------------------
+/*
+calculate_column(+TotalColumns, +Index, -ColumnIndex)
+Dado un indice y la cantidad de columnas de la grilla, retorna el indice de la columna
+a la que pertenece dicho indice.
+*/
+
+calculate_column(TotalColumns, Index, Index) :-
+	Index < TotalColumns, !.
+
+calculate_column(TotalColumns, Index, ColumnIndex) :-
+	Index >= TotalColumns, !,
+	ReducedIndex is Index - TotalColumns,
+	calculate_column(TotalColumns, ReducedIndex, ColumnIndex).
+
+%-------------------------------------------------------------------------------------------
+/*
+add_left_column(+TotalColumns, +ColIndex, +List, -RList)
+Dado el indice de una columna de la grilla y una lista que modificar, se agrega
+a dicha lista el indice de la columna a la izquierda del indice recibido.
+*/
+
+add_left_column(ColIndex, List, List) :-
+	ColIndex =:= 0, !.
+
+add_left_column(ColIndex, List, RList) :-
+	LeftColumn is ColIndex - 1,
+	LeftColumn >= 0, !,
+	append(List, [LeftColumn], RList).
+
+%-------------------------------------------------------------------------------------------
+/*
+add_right_column(+TotalColumns, +ColIndex, +List, -RList)
+Dado el indice de una columna de la grilla y una lista que modificar, se agrega
+a dicha lista el indice de la columna a la derecha del indice recibido.
+*/
+
+add_right_column(TotalColumns, ColIndex, List, List) :-
+	RightColumn is ColIndex + 1,
+	RightColumn =:= TotalColumns, !.
+
+add_right_column(TotalColumns, ColIndex, List, RList) :-
+	RightColumn is ColIndex + 1,
+	ColIndex < TotalColumns, !,
+	append(List, [RightColumn], RList).
 
 %-------------------------------------------------------------------------------------------
 
 /*
-process_columns(+GridIn, +TotalCols, -GridOut, -Movements)
-process_columns recorre la grilla extrayendo, organizando y reinsertando columnas una a una
+process_column(+GridIn, +TotalCols, -GridOut, -Movements)
+process_column recorre la grilla extrayendo, organizando y reinsertando la columna indicada por ColToCheck
 para que los bloques no tengan espacio vacio "debajo", retornando una nueva grilla sin bloques "flotantes".
 */
 
-process_columns(GridIn, TotalCols, GridOut, Movements) :-
-	process_columns_aux(0, TotalCols, GridIn, GridOut, [], Movements).
+process_column(GridIn, TotalCols, ColToCheck, GridOut, Movements) :-
+	process_columns_aux(ColToCheck, TotalCols, GridIn, GridOut, Movements).
 
-process_columns_aux(TotalCols, TotalCols, Grid, Grid, Acc, Movements) :- 
-	reverse(Acc, Movements), !.
+process_columns_aux(ColToCheck, TotalCols, GridIn, GridOut, Movements) :-
 
-process_columns_aux(Index, TotalCols, GridIn, GridOut, Acc, Movements) :-
-	
-    extract_column(GridIn, Index, TotalCols, 0, Column),
+    extract_column(GridIn, ColToCheck, TotalCols, Column),
     sort_column(Column, SortedColumn),
-	find_movements(0, Column, SortedColumn, TotalCols, Index, MovementsHead),
-    reinsert_column(GridIn, Index, TotalCols, 0, SortedColumn, NextGrid),
-	
-    NextIndex is Index + 1,
-	append(MovementsHead, Acc, NewAcc),
-    process_columns_aux(NextIndex, TotalCols, NextGrid, GridOut, NewAcc, Movements).
+	find_movements(0, Column, SortedColumn, TotalCols, ColToCheck, Movements),
+    reinsert_column(GridIn, ColToCheck, TotalCols, 0, SortedColumn, GridOut).
 
 %-------------------------------------------------------------------------------------------
 
@@ -460,25 +573,30 @@ separate_scores([H|T], [H|Hs], Scores) :-
 %-------------------------------------------------------------------------------------------
 
 /*
-extract_column(+Grid, +ColIndex, +NumCols, +Row, -ExtractedColumn)
-extract_column calcula que posiciones de la grilla pertenecen a la columna que se le 
+extract_column(+Grid, +ColIndex, +NumCols, -ExtractedColumn)
+Este wrapper invoca al auxiliar con la fila inicializada en 0.
+
+extract_column_aux(+Grid, +ColIndex, +NumCols, +Row, -ExtractedColumn)
+extract_column_aux calcula que posiciones de la grilla pertenecen a la columna que se le 
 pide extraer para luego agregarlas a la lista a retornar, la cual contiene todos los 
 elementos de la columna especificada.
-Este predicado comienza por la fila 0 y termina al llegar a la ultima fila.
 */
 
-extract_column(Grid, ColIndex, NumCols, Row, [Elem]) :- 
+extract_column(Grid, ColIndex, NumCols, ExtractedColumn) :- 
+	extract_column_aux(Grid, ColIndex, NumCols, 0, ExtractedColumn).
+
+extract_column_aux(Grid, ColIndex, NumCols, Row, [Elem]) :- 
 	gridSize(GridLength), 
 	DRow is (GridLength / NumCols) - 1,
 	DRow =:= Row,
 	Index is ColIndex + Row * NumCols,
 	nth0(Index, Grid, Elem), !.
 
-extract_column(Grid, ColIndex, NumCols, NumRows, [Elem | Rest]) :-
+extract_column_aux(Grid, ColIndex, NumCols, NumRows, [Elem | Rest]) :-
     Index is ColIndex + NumRows * NumCols,
     nth0(Index, Grid, Elem),
     NextNumRows is NumRows + 1,
-    extract_column(Grid, ColIndex, NumCols, NextNumRows, Rest).
+    extract_column_aux(Grid, ColIndex, NumCols, NextNumRows, Rest).
 
 %-------------------------------------------------------------------------------------------
 
@@ -528,47 +646,6 @@ find_movements(Iteration, [X | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [Inde
 find_movements(Iteration, [_X | Xs], [_Y | Ys], TotalColumns, ColumnToCheck, Movements) :-
 	NextIteration is Iteration + 1,
 	find_movements(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Movements).
-
-%-------------------------------------------------------------------------------------------
-
-/*
-Logica para fusiones:
-	Nuevo valor: 
-		Se basa en la cantidad de bloques con los que se fusiona.
-		El resultado sera el bloque duplicado tantas veces como bloques
-		con los que se fusiono.
-		Ej1.
-			se dispara un 2 contra 3 bloques numero 2. El numero 2 se duplica 3 veces por lo que resulta 16
-		Ej2.
-			se dispara un 4 contra 2 bloques numero 4. El numero 4 se duplica 2 veces por lo que resulta 16
-		Formula: bloque x 2^[cantidad de bloques con los que se fusiona]
-	Logica de fusion:
-		Dada una grilla, se revisan los bloques adyacentes a cada bloque y se determina la cantidad
-		de bloques iguales.
-		En caso de hayar coincidencias, se compara cuales de estos tienen mas bloques iguales adyacentes.
-		Al determinar esto, dado el bloque de mas posibles combinaciones, se fusiona culminando en la 
-		posicion de dicho bloque.
-		En caso de que varios bloques adyacentes puedan fusionar con la misma cantidad de bloques, 
-		la fusion culmina en la posicion del bloque que se movio ultimo.
-		En caso de que haya una unica fusion posible y esta sea un bloque arriba de otro, esto resulta en una 
-		fusion en direccion hacia arriba.
-	Proceso de fusion (shoot):
-		El proceso de disparo consta de la etapa de insercion de bloque seguido de llevar a cabo todas las posibles
-		fusiones, aplicando gravedad entre los pasos.
-
-		Este proceso de fusiones se divide de la siguiente manera:
-			(1) Dada una grilla, se recorre para saber que posiciones pueden fusionarse.
-			Una vez decidido que bloques se van a fusionar:
-				-(2) Se modifica el valor del bloque fusionado
-				-(0) Dada la posicion donde se inserto el bloque nuevo, tengo que hacer check position a las celdas adyacentes
-				a los lados si estas son iguales, y luego, de entre las opciones elijo la que mas fusiones admita. Si 
-				el bloque disparado admite una sola fusion entonces fusiono hacia si mismo excepto que dicha fusion sea con
-				el bloque de arriba, en cuyo caso fusiono hacia arriba.
-				-(1.1) Se guarda la posicion de dicho bloque donde culmino la fusion (en una lista)
-				-(3) Se reemplazan los bloques usados para la fusion por '-'
-				-(block_fall) Luego de realizar todas las fusiones, se aplica gravedad a toda la grilla
-			(1) Luego se vuelve a recorrer y si no hay mas posibles fusiones se da por terminado el shoot.
-*/
 
 %-------------------------------------------------------------------------------------------
 
@@ -862,4 +939,3 @@ best_match_aux(Grid, Col, [X | Xs], InvalidIndexes, [Y | Ys], [MIndexes | MIndex
 	best_match_aux(Grid, Col, Xs, InvalidIndexes, Ys, MIndexes2), !.
 
 %------------------------------------------------------------------------------------------
-%-------------------------------------------------------------------------------------------
