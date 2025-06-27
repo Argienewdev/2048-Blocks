@@ -110,6 +110,8 @@ function Game() {
   const response = await pengine.query(queryS); 
      
   if (response) {
+    // Cuento cuántos efectos contienen información de fusión
+    // (cada efecto con args[1].length > 0 indica una fusión)
   const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
     eff.args[1].length > 0
   ).length;
@@ -117,8 +119,11 @@ function Game() {
   const newBlockValue = response['Block'];
   setShootBlock(newBlockValue);
 
+  // Paso fusionCount a la función de animación
+    //Ejecuto la animación de efectos y ESPERO que termine completamente
   const finalGrid = await animateEffect(response['Effects'], fusionCount);
 
+  // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
   if (fusionCount >= 3) {
     setNotification(`¡Combo x${fusionCount}!`);
   }
@@ -129,7 +134,7 @@ function Game() {
   await handleHintInternal(newBlockValue, finalGrid);
   }
 
-} else {
+} else { // Si no hay respuesta válida, se reactiva la interfaz
   setWaiting(false);
 }
   }
