@@ -1,7 +1,8 @@
 :- module(proylcc, 
 	[  
 		randomBlock/2,
-		shoot/5	
+		shoot/5,
+		booster_hint/4
 	]).
 :- use_module(library(lists)).
 :- use_module(library(arithmetic)).
@@ -208,7 +209,37 @@ randomBlock(Grid, Block):-
 	random_member(Block, Potencias).
 
 %-------------------------------------------------------------------------------------------
-
+% booster_hint(+Block, +Grid, +NumCols, -Hints)
+%
+% Dado un bloque Block, una grilla Grid y la cantidad de columnas NumCols,
+% devuelve en Hints una lista con un hint por cada columna.
+% Cada hint indica cuantas fusiones (newBlock) se producen
+% si se tirara el bloque en esa columna.
+booster_hint(Block, Grid, NumCols, Hints) :-
+    findall(
+        hint(Col, Combo),        % por cada columna, armo un un par hint(Col, Combo)
+        (
+            between(1, NumCols, Col),                 % asigno los indices de las columnas
+            shoot(Block, Col, Grid, NumCols, Effects),% simulo el shoot (la jugada) en esa columna
+            count_combo(Effects, Combo)               % cuento cuantas fusiones se produjeron
+        ),
+        Hints                                          % reunimos todos los hints en una lista
+    ).
+%-------------------------------------------------------------------------------------------
+% count_combo(+Effects, -Count)
+%
+% Dada la lista de Effects (como la que produce shoot/5),
+% cuenta cuántos efectos contienen al menos una fusión newBlock(_).
+% Ese número se devuelve como Count.
+count_combo(Effects, Count) :-
+    include(has_newblock, Effects, FusionEffects), % nos quedamos solo con los que tienen fusiones
+    length(FusionEffects, Count).                  % contamos cuántos son
+%-------------------------------------------------------------------------------------------z
+% has_newblock(+Effect)
+%
+% verdadero si el efecto dado contiene al menos un newBlock(_) en su lista de infos.
+has_newblock(effect(_, Infos)) :-
+    member(newBlock(_), Infos). % hay al menos una fusión
 /**
  * shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects) 
  * RGrid es la lista de grillas representando el efecto, en etapas, de combinar las celdas del camino Path
