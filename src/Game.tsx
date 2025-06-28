@@ -39,6 +39,9 @@ function Game() {
   // - Si está activado, se mostrarán los hints después de cada jugada.
   // - Si está desactivado, los hints se ocultan y no se vuelven a calcular.
   const [hintsEnabled, setHintsEnabled] = useState<boolean>(false);
+  const [nextBlockVisible, setNextBlockVisible] = useState<boolean>(false);
+  // Estado que almacena el próximo bloque a utilizar si el modo está activado
+  const [nextBlock, setNextBlock] = useState<number | null>(null);
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -54,7 +57,7 @@ function Game() {
 
   // Efecto para manejar la animación de notificaciones
   // Se activa cada vez que cambia el estado 'notification'
-   useEffect(() => {
+  useEffect(() => {
     // Si no hay notificación, no hacer nada
     if (!notification) return;
 
@@ -67,7 +70,7 @@ function Game() {
       setFade(true); // Activar clase CSS para desvanecer
     }, 500);
 
-     // Programo la eliminación completa después de 1s
+    // Programo la eliminación completa después de 1s
     const removeTimeout = setTimeout(() => {
       setNotification(null);  // Limpiar el mensaje
       setFade(false);         // Resetear estado de desvanecimiento
@@ -84,64 +87,67 @@ function Game() {
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create()); // Await until the server is initialized
   }
-  
+
   async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block)';
+    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid, Block2)';
     const response = await pengine!.query(queryS);
     setGrid(response['Grid']);
-    setShootBlock(response['Block']);
+    setShootBlock(response['Block1']);
     setNumOfColumns(response['NumOfColumns']);
+    setNextBlock(response['Block2']);
   }
 
   /**
    * Called when the player clicks on a lane.
    */
   async function handleLaneClick(lane: number) {
-  // No effect if waiting. 
-  if (waiting || gameOver) {
-    return;
-  }
-  /*
-  Build Prolog query, which will be something like: 
-  shoot(2, 2, [4,2,8,64,32,2,-,-,4,16,-,-,-,-,2,-,-,-,-,16,-,-,-,-,2,-,-,-,-,-,-,-,-,-,-], 5, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block).
-  */
-  const gridS = JSON.stringify(grid).replace(/"/g, '');
-  const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
-  setWaiting(true);
-  const response = await pengine.query(queryS); 
-     
-  if (response) {
-    // Cuento cuántos efectos contienen información de fusión
-    // (cada efecto con args[1].length > 0 indica una fusión)
-  const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
-    eff.args[1].length > 0
-  ).length;
+    // No effect if waiting. 
+    if (waiting) {
+      return;
+    }
+    /*
+    Build Prolog query, which will be something like: 
+    shoot(2, 2, [4,2,8,64,32,2,-,-,4,16,-,-,-,-,2,-,-,-,-,16,-,-,-,-,2,-,-,-,-,-,-,-,-,-,-], 5, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block).
+    */
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+    setWaiting(true);
+    const response = await pengine.query(queryS);
 
-  const newBlockValue = response['Block'];
-  setShootBlock(newBlockValue);
+    if (response) {
+      // Cuento cuántos efectos contienen información de fusión
+      // (cada efecto con args[1].length > 0 indica una fusión)
+      const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
+        eff.args[1].length > 0
+      ).length;
+      
+      const newBlockValue = response['Block'];
+      setShootBlock(nextBlock);
+      setNextBlock(newBlockValue);
 
-  // Paso fusionCount a la función de animación
-    //Ejecuto la animación de efectos y ESPERO que termine completamente
-  const finalGrid = await animateEffect(response['Effects'], fusionCount);
+      // Paso fusionCount a la función de animación
+      //Ejecuto la animación de efectos y ESPERO que termine completamente
+      const finalGrid = await animateEffect(response['Effects'], fusionCount);
 
-  // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
-  if (fusionCount >= 3) {
-    setNotification(`¡Combo x${fusionCount}!`);
-  }
+      // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
+      if (fusionCount >= 3) {
+        setNotification(`¡Combo x${fusionCount}!`);
+      }
 
-  if (hintsEnabled) {
-  // Solo se actualizan los hints automaticamente si el usuario activo el sistema de hints.
-  // Se llama a handleHintInternal pasando la grilla final y el nuevo bloque para calcular los nuevos combos, sino se hace esto, se actualiza con bloque nuevo y grilla vieja.
-  await handleHintInternal(newBlockValue, finalGrid);
-  }
+      if (hintsEnabled) {
+        // Solo se actualizan los hints automaticamente si el usuario activo el sistema de hints.
+        // Se llama a handleHintInternal pasando la grilla final y el nuevo bloque para calcular los nuevos combos, sino se hace esto, se actualiza con bloque nuevo y grilla vieja.
+        if (nextBlock!=null)
+        await handleHintInternal(nextBlock, finalGrid);
+      }
 
-  } else { // Si no hay respuesta válida, se reactiva la interfaz
-    setWaiting(false);
-  }
+    } else { // Si no hay respuesta válida, se reactiva la interfaz
+      setWaiting(false);
+    }
   }
 
   async function animateEffect(effects: EffectTerm[], fusionCount: number): Promise<Grid> {
-    const effect = effects[0];    
+    const effect = effects[0];
     const [effectGrid, effectInfo] = effect.args;
     setGrid(effectGrid);
 
@@ -151,25 +157,21 @@ function Game() {
         case 'newBlock':
           setScore(score => score + args[0]);
           break;
-          default:
+        default:
           break;
       }
-  });
+    });
 
-  const restRGrids = effects.slice(1);
-  if (restRGrids.length === 0) {
-    setWaiting(false);
-    if (isGridFull(effectGrid)) {
-    setGameOver(true);
+    const restRGrids = effects.slice(1);
+    if (restRGrids.length === 0) {
+      setWaiting(false);
+      return effectGrid; //Se devuelve la última grilla luego de completar todas las animaciones lo cual permite usarla en handleHintInternal 
+      //para calcular los combos correctos. 
     }
-    return effectGrid; //Se devuelve la última grilla luego de completar todas las animaciones lo cual permite usarla en handleHintInternal 
-    //para calcular los combos correctos. 
-  }
 
-  await delay(250);
-  return await animateEffect(restRGrids, fusionCount);
+    await delay(250);
+    return await animateEffect(restRGrids, fusionCount);
   }
-
 
   async function handleHintInternal(blockValue: number, currentGrid?: Grid, forzar = false) {
     if (!hintsEnabled && !forzar) return; //si no esta habilitado y no se forzo 
@@ -197,7 +199,7 @@ function Game() {
         combo: hint.args[1] // CANTIDAD X DEL COMBO
       }));
 
-      // Si no hay ninguna jugada sugerida, se limpia el estado de hints.
+      // Si no hay ninguna jugada sugerida, se limpia el estado de hints si no hay jugadas sugeridas.
       if (parsedHints.length > 0) {
         setHints(parsedHints);
       } else {
@@ -209,14 +211,13 @@ function Game() {
     }
   }
 
-
   async function handleHint() {
     if (hintsEnabled) {
       setHintsEnabled(false);
       setHints([]);
     } else {
       setHintsEnabled(true);
-    
+
       if (shootBlock !== null) {
         await handleHintInternal(shootBlock, undefined, true);
       }
@@ -275,11 +276,22 @@ function Game() {
 
       <div className="footer">
         <button className="powerUp1" onClick={handleHint}>Hint Jugada</button>
-          <div className="blockShoot">
-            <Block value={shootBlock!} position={[0, 0]} />
-          </div>
-        <button className="powerUp2" onClick={() => alert('¡PowerUp 2!')}>Bloque siguiente</button>
+        <div className="blockShoot">
+          <Block value={shootBlock!} position={[0, 0]} />
+        </div>
+        <button className="powerUp2" onClick={() => setNextBlockVisible(!nextBlockVisible)}>
+          Bloque siguiente
+        </button>
       </div>
+        <div>
+          
+          {nextBlockVisible && (
+          <div className="nextBlockShoot">
+          <Block value={nextBlock!} position={[0, 0]} />
+          </div>
+          )}
+        </div>
+      
     </div>
   );
 }

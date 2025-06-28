@@ -229,12 +229,9 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 % cuenta cuántos efectos contienen al menos una fusión newBlock(_).
 % Ese número se devuelve como Count.
 count_combo(Effects, Count) :-
-    include(has_newblock, Effects, FusionEffects), % nos quedamos solo con los que tienen fusiones
-	length(FusionEffects, Count).                  % contamos cuántos son
-
-%-------------------------------------------------------------------------------------------
-
-% has_newblock(+Effect)
+    include(has_newblock, Effects, FusionEffects), % me quedo solo con los que tienen fusiones
+    length(FusionEffects, Count).                  % contamos cuántos son
+%-------------------------------------------------------------------------------------------z
 % has_newblock(+Effect)
 %
 % verdadero si el efecto dado contiene al menos un newBlock(_) en su lista de infos.
