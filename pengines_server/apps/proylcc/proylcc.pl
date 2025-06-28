@@ -580,8 +580,8 @@ process_columns_aux(ColToCheck, TotalCols, GridIn, GridOut, Movements) :-
 
     extract_column(GridIn, ColToCheck, TotalCols, Column),
     sort_column(Column, SortedColumn),
-	find_movements(0, Column, SortedColumn, TotalCols, ColToCheck, Movements),
-    reinsert_column(GridIn, ColToCheck, TotalCols, 0, SortedColumn, GridOut).
+	find_movements(Column, SortedColumn, TotalCols, ColToCheck, Movements),
+    reinsert_column(GridIn, ColToCheck, TotalCols, SortedColumn, GridOut).
 
 %-------------------------------------------------------------------------------------------
 
@@ -638,26 +638,46 @@ extract_column_aux(Grid, ColIndex, NumCols, NumRows, [Elem | Rest]) :-
     extract_column_aux(Grid, ColIndex, NumCols, NextNumRows, Rest).
 
 %-------------------------------------------------------------------------------------------
+/*
+reinsert_column(+GridIn, +ColIndex, +NumCols, +ColumnToInsert, -GridOut)
+Es un wrapper
+*/
+
+reinsert_column(GridIn, ColIndex, NumCols, ColumnToInsert, GridOut) :-
+	reinsert_column_aux(GridIn, ColIndex, NumCols, 0, ColumnToInsert, GridOut).
+
+%-------------------------------------------------------------------------------------------
 
 /*
-reinsert_column(+GridIn, +ColIndex, +NumCols, +Row, +ColumnToInsert, -GridOut)
-reinsert_column, dada una columna a reinsertar, la grilla, y el indice de dicha columna (basado en 0),
+reinsert_column(+GridIn, +ColIndex, +NumCols, +ColumnToInsert, -GridOut)
+Es un wrapper
+reinsert_column_aux(+GridIn, +ColIndex, +NumCols, +Row, +ColumnToInsert, -GridOut)
+Este predicado, dada una columna a reinsertar, la grilla, y el indice de dicha columna (basado en 0),
 reemplaza los elementos que pertenezcan a la columna en la grilla por los de la nueva columna.
 Este predicado comienza por la columna 0 y termina al llegar a la ultima columna.
 */
 
-reinsert_column(GridIn, ColIndex, NumCols, Row, [Elem], GridOut) :-
+reinsert_column_aux(GridIn, ColIndex, NumCols, Row, [Elem], GridOut) :-
 	gridSize(GridLength), 
 	DRow is (GridLength / NumCols) - 1,
 	DRow =:= Row,
 	Index is ColIndex + Row * NumCols,
     replace_at_index(GridIn, Index, Elem, GridOut), !.
 
-reinsert_column(GridIn, ColIndex, NumCols, Row, [Elem | Rest], GridOut) :-
+reinsert_column_aux(GridIn, ColIndex, NumCols, Row, [Elem | Rest], GridOut) :-
     Index is ColIndex + Row * NumCols,
     replace_at_index(GridIn, Index, Elem, GridNext),
     NextRow is Row + 1,
-    reinsert_column(GridNext, ColIndex, NumCols, NextRow, Rest, GridOut).
+    reinsert_column_aux(GridNext, ColIndex, NumCols, NextRow, Rest, GridOut).
+
+%-------------------------------------------------------------------------------------------
+/*
+find_movements(+Column, +SortedColumn, +TotalColumns, +ColumnToCheck, -Movements)
+Es un wrapper
+*/
+
+find_movements(Column, SortedColumn, TotalCols, ColToCheck, Movements) :-
+	find_movements_aux(0, Column, SortedColumn, TotalCols, ColToCheck, Movements).
 
 %-------------------------------------------------------------------------------------------
 
@@ -667,24 +687,24 @@ Este predicado revisa, dada una columna sin organizar y una organizada, que bloq
 y a donde. Retorna a que posicion de la grilla se movieron.
 */
 
-find_movements(_Iteration, [], [], _TotalColumns, _ColumnToCheck, []):- !.
+find_movements_aux(_Iteration, [], [], _TotalColumns, _ColumnToCheck, []):- !.
 
-find_movements(Iteration, ['-' | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [IndexOnGrid | Zs]) :-
+find_movements_aux(Iteration, ['-' | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [IndexOnGrid | Zs]) :-
 	Y \= '-',
 	IndexOnGrid is ColumnToCheck + (Iteration * TotalColumns),
 	NextIteration is Iteration + 1,
-	find_movements(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Zs), !.
+	find_movements_aux(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Zs), !.
 	
-find_movements(Iteration, [X | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [IndexOnGrid | Zs]) :-
+find_movements_aux(Iteration, [X | Xs], [Y | Ys], TotalColumns, ColumnToCheck, [IndexOnGrid | Zs]) :-
 	X \= Y,
 	Y \= '-',
 	IndexOnGrid is ColumnToCheck + (Iteration * TotalColumns),
 	NextIteration is Iteration + 1,
-	find_movements(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Zs), !.
+	find_movements_aux(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Zs), !.
 
-find_movements(Iteration, [_X | Xs], [_Y | Ys], TotalColumns, ColumnToCheck, Movements) :-
+find_movements_aux(Iteration, [_X | Xs], [_Y | Ys], TotalColumns, ColumnToCheck, Movements) :-
 	NextIteration is Iteration + 1,
-	find_movements(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Movements).
+	find_movements_aux(NextIteration, Xs, Ys, TotalColumns, ColumnToCheck, Movements).
 
 %-------------------------------------------------------------------------------------------
 
