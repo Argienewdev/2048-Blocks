@@ -90,20 +90,22 @@ Dadas las principales funcionales a ser contempladas tal como estan presentadas 
     - El nuevo bloque `newblock`
     - La grilla modificada
      
-    Luego de completar todas las fusiones posibles, se procede a revisar si se generó un nuevo bloque máximo en la grilla y se eliminan los  bloques que ya no están en uso. Esto se detalla en la siguiente sección.
+    Luego de completar todas las fusiones posibles, se procede a revisar si se generó un nuevo bloque máximo en la grilla y se eliminan los  bloques que ya no están en uso. La descripción de este proceso se encuentra más adelante en el informe.
 
     ---
 
     ### 🔽 Aplicación de la gravedad
 
-    Una vez concluidas las fusiones en una grilla, es posible que queden espacios vacíos entre bloques, debido a que algunas celdas fueron  liberadas tras las combinaciones. Para simular el efecto de la gravedad, se diseñó un mecanismo que reorganiza los bloques de cada columna, haciendo que los espacios vacíos se acumulen en la parte superior.
+    Una vez concluidas las fusiones en una grilla, es posible que queden espacios vacíos entre bloques, debido a que algunas celdas fueron liberadas tras las combinaciones. Para simular el efecto de la gravedad, se diseñó un mecanismo que reorganiza los bloques de las columnas, haciendo que los espacios vacíos se acumulen en los índices superiores de la grilla, es decir, en la parte inferior de la pantalla.
 
-    Esto se logra recorriendo cada columna de la grilla, extrayendo sus elementos de forma individual. Luego, se reordena dicha columna de modo que todos los bloques no vacíos se agrupen al fondo, y los guiones (que representan espacios vacíos) queden por encima. Finalmente, se  reinserta la columna ya ordenada en su posición original dentro de la    grilla.
+    Esto se logra recibiendo los índices de las columnas que deben ser  reorganizadas. Dichas columnas se obtienen a partir de un predicado que  utiliza los índices donde culminaron las fusiones, calcula a qué columnas pertenecen y agrega también las columnas adyacentes, todo esto sin repeticiones.
 
-    Este procedimiento se repite para cada columna, garantizando así que el efecto de gravedad se aplique a toda la grilla antes de buscar nuevas fusiones.
+    Una vez identificadas las columnas a reorganizar, se extraen    individualmente de la grilla, se reordenan y luego se reinsertan en su posición original.
+
+    Este procedimiento se repite para cada columna seleccionada,    garantizando así que el efecto de gravedad se aplique únicamente donde sea necesario antes de buscar nuevas fusiones.
 
     Finalmente, retorna:
     - Los índices donde cayeron bloques tras la aplicación de la gravedad
     - La grilla modificada
 
-    Se consideró una optimización que consistía en limitar el recorrido únicamente a las columnas adyacentes a los bloques que se desplazaron. Sin embargo, esta alternativa fue descartada debido al drástico aumento en la complejidad del código, frente a una mejora en el rendimiento que resultó ser despreciable en la práctica.
+    Cabe destacar que este proceso fue diseñado para aplicar la gravedad solo donde es necesario. Si bien no representa una mejora significativa en rendimiento en el caso actual, permite escalar el juego a una versión con más columnas y filas sin comprometer la eficiencia.
