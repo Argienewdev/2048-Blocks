@@ -24,6 +24,7 @@ function Game() {
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
+  const [gameOver, setGameOver] = useState<boolean>(false);
 
   // Estados para el sistema de notificaciones de combos
   // - notification: Almacena el mensaje a mostrar ("¡Combo x3!", etc.)
@@ -97,7 +98,7 @@ function Game() {
    */
   async function handleLaneClick(lane: number) {
   // No effect if waiting. 
-  if (waiting) {
+  if (waiting || gameOver) {
     return;
   }
   /*
@@ -134,99 +135,123 @@ function Game() {
   await handleHintInternal(newBlockValue, finalGrid);
   }
 
-} else { // Si no hay respuesta válida, se reactiva la interfaz
-  setWaiting(false);
-}
+  } else { // Si no hay respuesta válida, se reactiva la interfaz
+    setWaiting(false);
+  }
   }
 
- async function animateEffect(effects: EffectTerm[], fusionCount: number): Promise<Grid> {
-  const effect = effects[0];    
-  const [effectGrid, effectInfo] = effect.args;
-  setGrid(effectGrid);
+  async function animateEffect(effects: EffectTerm[], fusionCount: number): Promise<Grid> {
+    const effect = effects[0];    
+    const [effectGrid, effectInfo] = effect.args;
+    setGrid(effectGrid);
 
-  effectInfo.forEach((effectInfoItem) => {
-    const { functor, args } = effectInfoItem;
-    switch (functor) {
-      case 'newBlock':
-        setScore(score => score + args[0]);
-        break;
-        default:
-        break;
-    }
+    effectInfo.forEach((effectInfoItem) => {
+      const { functor, args } = effectInfoItem;
+      switch (functor) {
+        case 'newBlock':
+          setScore(score => score + args[0]);
+          break;
+          default:
+          break;
+      }
   });
 
   const restRGrids = effects.slice(1);
   if (restRGrids.length === 0) {
     setWaiting(false);
+    if (isGridFull(effectGrid)) {
+    setGameOver(true);
+    }
     return effectGrid; //Se devuelve la última grilla luego de completar todas las animaciones lo cual permite usarla en handleHintInternal 
     //para calcular los combos correctos. 
   }
 
   await delay(250);
   return await animateEffect(restRGrids, fusionCount);
-}
+  }
 
 
-async function handleHintInternal(blockValue: number, currentGrid?: Grid, forzar = false) {
-  if (!hintsEnabled && !forzar) return; //si no esta habilitado y no se forzo 
+  async function handleHintInternal(blockValue: number, currentGrid?: Grid, forzar = false) {
+    if (!hintsEnabled && !forzar) return; //si no esta habilitado y no se forzo 
 
-  // Si se paso una grilla explicitamente (desp de una jugada), se usa esa.
-  // De lo contrario, se usa la grilla actual almacenada en el estado.
-  const actualGrid = currentGrid || grid;
+    // Si se paso una grilla explicitamente (desp de una jugada), se usa esa.
+    // De lo contrario, se usa la grilla actual almacenada en el estado.
+    const actualGrid = currentGrid || grid;
 
-   //Verifica que tanto la grilla como el numero de columnas estén definidos.
-  // Si falta alguno, no tiene sentido consultar a Prolog, así que se corta.(esto lo agregue porque me tiraba error)
-  if (!actualGrid || !numOfColumns) return;
+    //Verifica que tanto la grilla como el numero de columnas estén definidos.
+    // Si falta alguno, no tiene sentido consultar a Prolog, así que se corta.(esto lo agregue porque me tiraba error)
+    if (!actualGrid || !numOfColumns) return;
 
-  //Serializa la grilla en formato compatible con Prolog (Lo saque del handleclick).
-  const gridS = JSON.stringify(actualGrid).replace(/"/g, '');
-  //Consulta a prolog booster_hint
-  const queryS = `booster_hint(${blockValue}, ${gridS}, ${numOfColumns}, Hints)`;
+    //Serializa la grilla en formato compatible con Prolog (Lo saque del handleclick).
+    const gridS = JSON.stringify(actualGrid).replace(/"/g, '');
+    //Consulta a prolog booster_hint
+    const queryS = `booster_hint(${blockValue}, ${gridS}, ${numOfColumns}, Hints)`;
 
-  //Ejecuta la consulta en Prolog y espera la respuesta.
-  const response = await pengine.query(queryS);
+    //Ejecuta la consulta en Prolog y espera la respuesta.
+    const response = await pengine.query(queryS);
 
-  //Si hay respuesta válida y contiene hints, se parsean.
-  if (response && response['Hints']) {
-    const parsedHints = response['Hints'].map((hint: any) => ({
-      col: hint.args[0], // COLUMNA
-      combo: hint.args[1] // CANTIDAD X DEL COMBO
-    }));
+    //Si hay respuesta válida y contiene hints, se parsean.
+    if (response && response['Hints']) {
+      const parsedHints = response['Hints'].map((hint: any) => ({
+        col: hint.args[0], // COLUMNA
+        combo: hint.args[1] // CANTIDAD X DEL COMBO
+      }));
 
-    // Si no hay ninguna jugada sugerida, se limpia el estado de hints si no hay jugadas sugeridas.
-    if (parsedHints.length > 0) {
-      setHints(parsedHints);
+      // Si no hay ninguna jugada sugerida, se limpia el estado de hints.
+      if (parsedHints.length > 0) {
+        setHints(parsedHints);
+      } else {
+        setHints([]);
+      }
     } else {
+      //se limpia para que no queden sugerencias antiguas visibles
       setHints([]);
     }
-  } else {
-    //se limpia para que no queden sugerencias antiguas visibles
-    setHints([]);
   }
-}
 
 
-async function handleHint() {
-  if (hintsEnabled) {
-    setHintsEnabled(false);
-    setHints([]);
-  } else {
-    setHintsEnabled(true);
-  
-    if (shootBlock !== null) {
-      await handleHintInternal(shootBlock, undefined, true);
+  async function handleHint() {
+    if (hintsEnabled) {
+      setHintsEnabled(false);
+      setHints([]);
+    } else {
+      setHintsEnabled(true);
+    
+      if (shootBlock !== null) {
+        await handleHintInternal(shootBlock, undefined, true);
+      }
     }
   }
-}
 
+  function isGridFull(grid: Grid): boolean {
+    return !grid.includes("-");
+  }
 
-if (grid === null) {
+  async function restartGame() {
+    setGameOver(false);
+    setScore(0);
+    setHints([]);
+    setHintsEnabled(false);
+    await initGame();
+  }
+
+  if (grid === null) {
     return null;
   }
 
   return (
-    /*notificaciones de combos */
     <div className="game" style={{ position: 'relative' }}>
+      {gameOver && (
+        <div className="game-over-overlay">
+          <div className="game-over-card">
+            <h2>¡Game Over!</h2>
+            <p>Puntaje: {score}</p>
+            <button onClick={restartGame}>Reiniciar juego</button>
+          </div>
+        </div>
+      )}
+
+      /* notificaciones de combos */
       {notification && (
         <div
           // - 'show' para aparición inicial
@@ -250,9 +275,9 @@ if (grid === null) {
 
       <div className="footer">
         <button className="powerUp1" onClick={handleHint}>Hint Jugada</button>
-        <div className="blockShoot">
-          <Block value={shootBlock!} position={[0, 0]} />
-        </div>
+          <div className="blockShoot">
+            <Block value={shootBlock!} position={[0, 0]} />
+          </div>
         <button className="powerUp2" onClick={() => alert('¡PowerUp 2!')}>Bloque siguiente</button>
       </div>
     </div>

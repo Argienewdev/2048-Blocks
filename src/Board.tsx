@@ -16,22 +16,16 @@ function Board({ grid, numOfColumns, onLaneClick, hints = [] }: BoardProps) {
         <div className="board">
             <div className="blocks" style={{ gridTemplateColumns: `repeat(${numOfColumns}, 70px)`, gridTemplateRows: `repeat(${numOfRows}, 70px)` }}>
 
-                {/* se dibuja una pista sobre cada columna si existe un hint para esa columna */}
-                {hints.map((hint, i) => (
-                    <div
-                        key={`hint-${i}`}
-                        style={{ //TODO: Agregar esto al css, por algun motivo no reconoce la clase
-                            position: 'relative',
-                            textAlign: 'center',
-                            opacity: 1,
-                            color: 'white',
-                            fontSize: '12px',
-                        }}
-                    >
-                        {hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo'}
+                {/* Renderizamos las zonas para los hints de cada columna */}
+                {Array.from({ length: numOfColumns }).map((_, i) => {
+                const hint = hints.find(h => h.col === i + 1); // Busca el hint para la columna i+1
+                return (
+                    <div className="hints-container" key={`hint-${i}`}>
+                        {hints.length > 0 && hint ? (hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo') : ''}
                     </div>
-                ))}
-
+                );
+                })}
+                
                 {/* Renderizamos las zonas clickeables de cada columna */}
                 {Array.from({ length: numOfColumns }).map((_, i) => (
                     <div
