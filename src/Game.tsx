@@ -102,7 +102,7 @@ function Game() {
    */
   async function handleLaneClick(lane: number) {
     // No effect if waiting. 
-    if (waiting) {
+    if (waiting || gameOver) {
       return;
     }
     /*
@@ -165,6 +165,9 @@ function Game() {
     const restRGrids = effects.slice(1);
     if (restRGrids.length === 0) {
       setWaiting(false);
+      if (isGridFull(effectGrid)) {
+        setGameOver(true);
+      }
       return effectGrid; //Se devuelve la última grilla luego de completar todas las animaciones lo cual permite usarla en handleHintInternal 
       //para calcular los combos correctos. 
     }
