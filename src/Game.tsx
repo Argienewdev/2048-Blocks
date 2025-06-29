@@ -287,14 +287,12 @@ function Game() {
         </button>
       </div>
         <div>
-          
           {nextBlockVisible && (
           <div className="nextBlockShoot">
-          <Block value={nextBlock!} position={[0, 0]} />
+            <Block value={nextBlock!} position={[0, 0]} />
           </div>
           )}
         </div>
-      
     </div>
   );
 }
