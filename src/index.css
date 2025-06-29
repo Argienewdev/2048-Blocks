@@ -117,5 +117,27 @@ body {
   height: 70px;
   width:  70px;
   margin-left: 30px;
-} 
+}
+
+/* 
+ Estilos para las pistas del Booster Hint que se muestran flotando arriba de cada columna.
+ Estas pistas indican el combo que se lograría si se dispara el bloque actual en esa columna.
+*/
+
+.hint {
+  position: absolute;       /* Flotando encima de la grilla */
+  top: -25px;               /* Separación respecto al borde superior de la grilla */
+  left: 50%;                /* Centrado horizontalmente en la columna */
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.6); /* Fondo semitransparente negro */
+  padding: 2px 6px;         /* Espaciado interno */
+  border-radius: 4px;       /* Bordes redondeados */
+  font-size: 12px;          /* Tamaño de fuente */
+  color: white;             /* Color del texto */
+  opacity: 0.8;             /* Semitransparente */
+  pointer-events: none;     /* No bloquea clicks */
+  z-index: 3;               /* Asegura que quede encima de los bloques */
+  white-space: nowrap;      /* Evita que el texto se corte en varias líneas */
+  text-align: center;
+}
 

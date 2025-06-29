@@ -32,6 +32,7 @@ function Game() {
   const [notification, setNotification] = useState<string | null>(null);
   const [fade, setFade] = useState<boolean>(false);
   const [show, setShow] = useState<boolean>(false);
+  const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -77,7 +78,7 @@ function Game() {
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create()); // Await until the server is initialized
   }
-
+  
   async function initGame() {
     const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block)';
     const response = await pengine!.query(queryS);
@@ -121,9 +122,16 @@ function Game() {
     if (fusionCount >= 3) {
       setNotification(`¡Combo x${fusionCount}!`);
     }
+
+    if (fusionCount == 3) {
+      handleHintInternal(response['Block']);
+    }
+   
+
   } else { // Si no hay respuesta válida, se reactiva la interfaz
     setWaiting(false);
   }
+  
 }
 
  async function animateEffect(effects: EffectTerm[], fusionCount: number) {
@@ -145,12 +153,37 @@ function Game() {
   const restRGrids = effects.slice(1);
   if (restRGrids.length === 0) {
     setWaiting(false);
+    if (shootBlock !== null) {
+    handleHintInternal(shootBlock);
+    }
     return;
   }
   
   await delay(250);
   await animateEffect(restRGrids, fusionCount);
+
+  handleHint();
 }
+
+async function handleHintInternal(blockValue: number) {
+    if (!grid || !numOfColumns) return;
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const queryS = `booster_hint(${blockValue}, ${gridS}, ${numOfColumns}, Hints)`;
+    const response = await pengine.query(queryS);
+    if (response && response['Hints']) {
+      const parsedHints = response['Hints'].map((hint: any) => ({
+        col: hint.args[0],
+        combo: hint.args[1]
+      }));
+      setHints(parsedHints);
+    }
+}
+
+async function handleHint() {
+    if (shootBlock !== null) {
+      handleHintInternal(shootBlock);
+    }
+  }
 
   if (grid === null) {
     return null;
@@ -177,14 +210,15 @@ function Game() {
         grid={grid}
         numOfColumns={numOfColumns!}
         onLaneClick={handleLaneClick}
+        hints={hints}
       />
 
       <div className="footer">
-        <button className="powerUp1" onClick={() => alert('¡PowerUp 1!')} />
+        <button className="powerUp1" onClick={handleHint}>Hint Jugada</button>
         <div className="blockShoot">
           <Block value={shootBlock!} position={[0, 0]} />
         </div>
-        <button className="powerUp2" onClick={() => alert('¡PowerUp 2!')} />
+        <button className="powerUp2" onClick={() => alert('¡PowerUp 2!')}>Bloque siguiente</button>
       </div>
     </div>
   );
