@@ -251,7 +251,7 @@ function Game() {
         </div>
       )}
 
-      /* notificaciones de combos */
+      {/* notificaciones de combos */}
       {notification && (
         <div
           // - 'show' para aparición inicial
