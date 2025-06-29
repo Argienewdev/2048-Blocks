@@ -5,11 +5,11 @@ interface BoardProps {
     grid: Grid;
     numOfColumns: number;
     onLaneClick: (lane: number) => void;
-    // lista de pistas a mostrar, una por cada columna
-    hints?: { col: number, combo: number }[];
+    hints?: { col: number; combo: number; maxBlock?: number }[];
+    shootBlock: number | null;
 }
 
-function Board({ grid, numOfColumns, onLaneClick, hints = [] }: BoardProps) {
+function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock }: BoardProps) {
     const numOfRows = grid.length / numOfColumns;
 
     return (
@@ -21,11 +21,15 @@ function Board({ grid, numOfColumns, onLaneClick, hints = [] }: BoardProps) {
                 const hint = hints.find(h => h.col === i + 1); // Busca el hint para la columna i+1
                 return (
                     <div className="hints-container" key={`hint-${i}`}>
-                        {hints.length > 0 && hint ? (hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo') : ''}
-                    </div>
+                        {hints.length > 0 && hint && (
+                        <>
+                        {hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo'}
+                        {hint.maxBlock && hint.maxBlock > 0 ? `Máx: ${hint.maxBlock}` : ''}
+                        </>
+                    )}
+</div>
                 );
                 })}
-                
                 {/* Renderizamos las zonas clickeables de cada columna */}
                 {Array.from({ length: numOfColumns }).map((_, i) => (
                     <div

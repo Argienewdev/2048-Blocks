@@ -212,17 +212,17 @@ randomBlock(Grid, Block):-
 % si se tirara el bloque en esa columna.
 booster_hint(Block, Grid, NumCols, Hints) :-
     findall(
-	hint(Col, Combo),        % por cada columna, armo un un par hint(Col, Combo)
+	hint(Col, Combo, MaxBlock),        % por cada columna, armo un un par hint(Col, Combo, MaxBlock)
 	(
 		between(1, NumCols, Col),                 % asigno los indices de las columnas
 		shoot(Block, Col, Grid, NumCols, Effects),% simulo el shoot (la jugada) en esa columna
-		count_combo(Effects, Combo)               % cuento cuantas fusiones se produjeron
+		count_combo(Effects, Combo),              % cuento cuantas fusiones se produjeron
+		max_newblock(Effects, MaxBlock)			  % encuentro el valor maximo producto de la fusion
 		),
         Hints                                          % reunimos todos los hints en una lista
 		).
 	
 %-------------------------------------------------------------------------------------------
-
 % count_combo(+Effects, -Count)
 %
 % Dada la lista de Effects (como la que produce shoot/5),
@@ -231,7 +231,7 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 count_combo(Effects, Count) :-
     include(has_newblock, Effects, FusionEffects), % me quedo solo con los que tienen fusiones
     length(FusionEffects, Count).                  % contamos cuántos son
-%-------------------------------------------------------------------------------------------z
+%-------------------------------------------------------------------------------------------
 % has_newblock(+Effect)
 %
 % verdadero si el efecto dado contiene al menos un newBlock(_) en su lista de infos.
@@ -239,7 +239,16 @@ has_newblock(effect(_, Infos)) :-
     member(newBlock(_), Infos). % hay al menos una fusión
 
 %-------------------------------------------------------------------------------------------
+% max_newblock(+Effects, -Max)
+%
+% Dada una lista de efectos 'Effects'
+% devuelve en 'Max' el valor más alto de todos los bloques generados por fusiones
+% Si no se generó ningún bloque, devuelve 0.
+max_newblock(Effects, Max) :-
+    findall(V, (member(effect(_, Infos), Effects), member(newBlock(V), Infos)), Blocks),
+    ( Blocks = [] -> Max = 0 ; max_list(Blocks, Max) ).
 
+%-------------------------------------------------------------------------------------------
 /*
 shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects)
 shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.

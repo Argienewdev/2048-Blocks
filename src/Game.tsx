@@ -199,7 +199,8 @@ function Game() {
     if (response && response['Hints']) {
       const parsedHints = response['Hints'].map((hint: any) => ({
         col: hint.args[0], // COLUMNA
-        combo: hint.args[1] // CANTIDAD X DEL COMBO
+        combo: hint.args[1], // CANTIDAD X DEL COMBO
+        maxBlock: hint.args[2] 
       }));
 
       // Si no hay ninguna jugada sugerida, se limpia el estado de hints si no hay jugadas sugeridas.
@@ -272,9 +273,10 @@ function Game() {
 
       <Board
         grid={grid}
-        numOfColumns={numOfColumns!}
-        onLaneClick={handleLaneClick}
-        hints={hints}
+    numOfColumns={numOfColumns!}
+    onLaneClick={handleLaneClick}
+    hints={hints}
+    shootBlock={shootBlock}
       />
 
       <div className="footer">
@@ -286,15 +288,13 @@ function Game() {
           Bloque siguiente
         </button>
       </div>
-        <div>
-          
-          {nextBlockVisible && (
-          <div className="nextBlockShoot">
-          <Block value={nextBlock!} position={[0, 0]} />
-          </div>
-          )}
-        </div>
-      
+      <div className="contenedorFinal">
+  <div className="nextBlockShoot">
+    {nextBlockVisible && (
+      <Block value={nextBlock!} position={[0, 0]} />
+    )}
+  </div>
+</div>
     </div>
   );
 }

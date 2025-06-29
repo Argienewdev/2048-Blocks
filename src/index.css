@@ -49,7 +49,7 @@ body {
 
 .hints-container {
   position: relative;
-  height: 20px; /* Altura fija para los hints */
+  height: 40px; /* Altura fija para los hints */
   text-align: center;
   color: white;
   font-size: 12px;
@@ -89,16 +89,20 @@ body {
 }
 
 .nextBlockShoot{
-  width: 50px;
-  height: 50px;
+  width: 60px;
+  height: 60px;
   display: flex;
   border-radius: 10px;
-  border: 2px solid white;
-  padding: 5px;
 }
 
 .nextBlockShoot>div {
   flex-grow: 1;
+  border: 2px solid white;
+  padding: 4px; /* Espacio entre borde blanco y contenido */
+  border-radius: 10px; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .powerUp1{
@@ -140,6 +144,11 @@ body {
   height: 70px;
   width:  70px;
   margin-left: 30px;
+}
+
+.contenedorFinal{
+  background-color: black;
+  padding: 10px;
 }
 
 .game-over-overlay {
