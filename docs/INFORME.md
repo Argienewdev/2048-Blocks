@@ -32,9 +32,29 @@ Dadas las principales funcionales a ser contempladas tal como estan presentadas 
 
     ### 🔹 Estructura jerárquica de resolución de fusiones
 
-    El núcleo de la lógica del juego se basa en tres niveles de predicados encadenados de forma jerárquica:
+    El núcleo de la lógica del juego se basa en cuatro niveles de predicados encadenados de forma jerárquica:
 
-    #### 1. `admin` (nivel superior):
+    #### 1. `process`:
+
+    Su función es controlar la existencia de bloques en desuso luego de realizar las fusiones correspondientes. Esta etapa tiene un comportamiento recursivo que asegura una limpieza total de la grilla antes de retornar los efectos finales.
+
+    Sus tareas principales son:
+
+    - Invocar a admin para procesar las fusiones y aplicar la gravedad.
+
+    - Verificar si, tras ese proceso, existen bloques que deban ser removidos.
+
+    - En caso afirmativo, realizar dicha remoción y llamarse recursivamente a sí mismo para evaluar si surgen nuevas oportunidades de fusión.
+
+    - Repetir este ciclo hasta que no haya más bloques en desuso.
+
+    - Retornar la grilla final y los efectos acumulados.
+
+    Este enfoque garantiza una limpieza completa de bloques que ya no forman parte de ninguna combinación válida, incluso si su remoción desencadena nuevas fusiones posibles y posteriormente la necesidad de remover mas bloques.
+    
+    > Como técnica de optimización, se utilizó la implicación (**`->`**) para evitar reevaluaciones innecesarias cuando la busqueda de bloques para eliminar resulta negativa.
+
+    #### 2. `admin`:
 
     Controla el ciclo completo del disparo de un bloque. Se encarga de:
 
@@ -44,7 +64,7 @@ Dadas las principales funcionales a ser contempladas tal como estan presentadas 
 
     > Como técnica de optimización, se utilizó la implicación (**`->`**) para evitar reevaluaciones innecesarias cuando aplicar gravedad no provoca ningun cambio.
 
-    #### 2. `bucle` (nivel intermedio):
+    #### 3. `bucle`:
 
     Se encarga de recorrer una lista de índices a revisar y, para cada uno, intentar ejecutar una fusión con `fusion`.\
     Esta etapa nace a partir de una decisión de diseño clave: los bloques formados en una fusión no deben ser candidatos a otra fusión dentro del mismo ciclo.
@@ -70,7 +90,7 @@ Dadas las principales funcionales a ser contempladas tal como estan presentadas 
 
     Los nuevos indices serán utilizados por `admin` para aplicar relanzar el ciclo. La grilla resultante y los nuevos bloques formados serán utilizados para la creacion de efectos.
 
-    #### 3. `fusion` (nivel inferior):
+    #### 4. `fusion`:
 
     Es el núcleo de la lógica de combinación de bloques. A pesar de ser el último paso de la fusión, está compuesto por varios subpredicados.
 

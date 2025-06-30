@@ -76,8 +76,13 @@ es_guion('-').
 
 /*
 max_actual(+Grid, -Max)
-retorna el maximo actual de la grilla
+Retorna el maximo actual de la grilla
+Si la grilla estaba vacia, el maximo sera 0
 */
+
+max_grid(Grid, 0):- 
+	exclude(es_guion, Grid, []), !.
+
 max_grid(Grid, Max):- 
 	exclude(es_guion, Grid, Numeros), 
 	max_list(Numeros, Max).
@@ -86,8 +91,10 @@ max_grid(Grid, Max):-
 
 /*
 min_actual(+Grid, -Min)
-retorna el minimo actual de la grilla
+Retorna el minimo actual de la grilla
+Como nunca se llama con la grilla vacia, no se verifica el caso
 */
+
 min_actual(Grid, Min):- 
 	exclude(es_guion, Grid, Numeros), 
 	min_list(Numeros, Min).
@@ -143,52 +150,63 @@ Esto se utiliza, por ejemplo, para eliminar todos los bloques de menor valor tra
 */
 
 remove_block(Block, Grid, NewGrid, Indexes) :-
-    remove_block_aux(Block, '-', Grid, 0, NewGrid, [], Indexes).
+    remove_block_aux(Block, '-', Grid, 0, NewGrid, Indexes).
 
-remove_block_aux(_, _, [], _, [], Acc, Acc) :- !.
+remove_block_aux(_, _, [], _, [], []) :- !.
 
 %Si es un numero y es menor o igual al bloque a eliminar, se elimina.
-remove_block_aux(Block, Repl, [H|T], I, [Repl|NT], Acc, Indexes) :-
+remove_block_aux(Block, Repl, [H|T], I, [Repl|NT], [I | Indexes]) :-
 	number(H),
 	Block >= H,
     I1 is I + 1, !,
-    remove_block_aux(Block, Repl, T, I1, NT, Acc, Indexes).
+    remove_block_aux(Block, Repl, T, I1, NT, Indexes).
 
 %Si no es igual al bloque a eliminar se deja igual.
-remove_block_aux(Block, Repl, [H|T], I, [H|NT], Acc, Indexes) :-
+remove_block_aux(Block, Repl, [H|T], I, [H|NT], Indexes) :-
     Block \= H,
-    I1 is I + 1, !,
-    remove_block_aux(Block, Repl, T, I1, NT, Acc, Indexes).
+    I1 is I + 1,
+    remove_block_aux(Block, Repl, T, I1, NT, Indexes).
 
 %-------------------------------------------------------------------------------------------
 
-% evaluate_elimination(+Previous_Grid, +FinalGrid, -BlockToRemove)
+% evaluate_elimination(+CurrentMax, +NewMax, -BlockToRemove)
 % Este predicado determina si corresponde eliminar un bloque mínimo tras una jugada,
 % y calcula cuál debe eliminarse según la lógica del juego.
-evaluate_elimination(Previous_Grid, FinalGrid, BlockToRemove) :-
-    max_grid(Previous_Grid, MaxAnterior),
-    max_grid(FinalGrid, MaxFinal),
-    MaxFinal >= 1024,
-    MaxFinal > MaxAnterior,
-    min_max_grid_values_permited(MaxFinal, BlockToRemoveBeforeDivision, _),
+
+evaluate_elimination(CurrentMax, NewMax, BlockToRemove) :-
+    NewMax >= 1024,
+    NewMax > CurrentMax,
+    min_max_grid_values_permited(NewMax, BlockToRemoveBeforeDivision, _),
     BlockToRemove is BlockToRemoveBeforeDivision / 2.
 
 %-------------------------------------------------------------------------------------------
 
-% apply_deletes_and_merges(+InsertGrid, +FinalGrid, +Col, -Effects)
-% Si corresponde eliminar el mínimo, elimina los bloques, aplica gravedad y fusiones, y concatena los efectos.
+/*
+apply_deletes_and_merges(+Grid, +Col, +CurrentMax, +NewMax, -Effects, -RGrid, -Movements)
+Este predicado, dada una grilla, evalua si es necesario eliminar un bloque
+y en caso afirmativo:
+	Elimina el bloque de la grilla
+	Aplica gravedad en las columnas donde se eliminaron bloques
 
-apply_deletes_and_merges(InsertGrid, FinalGrid, Col, Effects) :-
-    evaluate_elimination(InsertGrid, FinalGrid, BlockToRemove),
-	remove_block(BlockToRemove, FinalGrid, GridResult, RemovedIndexes),
+Se retorna:
+	Los efectos
+	La grilla final
+	Los indices de los bloques que se movieron
+*/
+
+apply_deletes_and_merges(Grid, Col, CurrentMax, NewMax, Effects, RGrid, Movements) :-
+    evaluate_elimination(CurrentMax, NewMax, BlockToRemove),
+	remove_block(BlockToRemove, Grid, RemovedBlockGrid, RemovedIndexes),
 	get_columns_to_check(RemovedIndexes, Col, ColumnsToCheck),
-	% Obtiene todos los índices de la grilla resultante para aplicar gravedad/fusiones globalmente
-	(block_fall(GridResult, Col, ColumnsToCheck, GravityGrid, Movements) ->
+	% Obtiene todos los índices de la grilla resultante para aplicar gravedad
+	(block_fall(RemovedBlockGrid, Col, ColumnsToCheck, GravityGrid, Movements) ->
 	
-	fusion_admin(GravityGrid, Col, Movements, FusionEffects),
-	append([effect(GridResult, []), effect(GravityGrid, [])], FusionEffects, Effects);
+	Effects = [effect(RemovedBlockGrid, []), effect(GravityGrid, [])],
+	RGrid = GravityGrid;
 	
-	Effects = [effect(GridResult, [])]).
+	RGrid = RemovedBlockGrid,
+	Movements = [],
+	Effects = [effect(RemovedBlockGrid, [])]).
 
 
 %-------------------------------------------------------------------------------------------
@@ -214,6 +232,7 @@ randomBlock(Grid, Block):-
 % devuelve en Hints una lista con un hint por cada columna.
 % Cada hint indica cuantas fusiones (newBlock) se producen
 % si se tirara el bloque en esa columna.
+
 booster_hint(Block, Grid, NumCols, Hints) :-
     findall(
 	hint(Col, Combo, MaxBlock),        % por cada columna, armo un un par hint(Col, Combo, MaxBlock)
@@ -221,34 +240,41 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 		between(1, NumCols, Col),                 % asigno los indices de las columnas
 		shoot(Block, Col, Grid, NumCols, Effects),% simulo el shoot (la jugada) en esa columna
 		count_combo(Effects, Combo),              % cuento cuantas fusiones se produjeron
-		max_newblock(Effects, MaxBlock)			  % encuentro el valor maximo producto de la fusion
+		max_newblock_from_effects(Effects, MaxBlock)			  % encuentro el valor maximo producto de la fusion
 		),
         Hints                                          % reunimos todos los hints en una lista
 		).
-	
+
 %-------------------------------------------------------------------------------------------
+
 % count_combo(+Effects, -Count)
 %
 % Dada la lista de Effects (como la que produce shoot/5),
 % cuenta cuántos efectos contienen al menos una fusión newBlock(_).
 % Ese número se devuelve como Count.
+
 count_combo(Effects, Count) :-
     include(has_newblock, Effects, FusionEffects), % me quedo solo con los que tienen fusiones
     length(FusionEffects, Count).                  % contamos cuántos son
+
 %-------------------------------------------------------------------------------------------
+
 % has_newblock(+Effect)
 %
 % verdadero si el efecto dado contiene al menos un newBlock(_) en su lista de infos.
+
 has_newblock(effect(_, Infos)) :-
     member(newBlock(_), Infos). % hay al menos una fusión
 
 %-------------------------------------------------------------------------------------------
-% max_newblock(+Effects, -Max)
+
+% max_newblock_from_effects(+Effects, -Max)
 %
 % Dada una lista de efectos 'Effects'
 % devuelve en 'Max' el valor más alto de todos los bloques generados por fusiones
 % Si no se generó ningún bloque, devuelve 0.
-max_newblock(Effects, Max) :-
+
+max_newblock_from_effects(Effects, Max) :-
     findall(V, (member(effect(_, Infos), Effects), member(newBlock(V), Infos)), Blocks),
     ( Blocks = [] -> Max = 0 ; max_list(Blocks, Max) ).
 
@@ -258,60 +284,76 @@ shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects)
 shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.
 Luego, este procede del siguiente modo:
 	block_insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
-	fusion_admin: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
+	fusion_process: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
 	append: junta los efectos para retornarlos
 */
 
 shoot(Block, Lane, Grid, Col, Effects) :-
     gridSize(_), !,
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
-    append([effect(InsertGrid, [])], FEffects, TempEffects),
-    last(TempEffects, effect(FinalGrid, _)),
-    (apply_deletes_and_merges(InsertGrid, FinalGrid, Col, PostDeletesMergesEffects) ->
-	append(TempEffects, PostDeletesMergesEffects, Effects);
-	Effects = TempEffects).
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects),
+    append([effect(InsertGrid, [])], FEffects, Effects).
 
 shoot(Block, Lane, Grid, Col, Effects) :-
     length(Grid, GridSize),
-    assert(gridSize(GridSize)), !,
+    assert(gridSize(GridSize)),
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_admin(InsertGrid, Col, [InsertIndex], FEffects),
-    append([effect(InsertGrid, [])], FEffects, TempEffects),
-    last(TempEffects, effect(FinalGrid, _)),
-    (apply_deletes_and_merges(InsertGrid, FinalGrid, Col, PostDeletesMergesEffects) ->
-	append(TempEffects, PostDeletesMergesEffects, Effects);
-	Effects = TempEffects).
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects),
+    append([effect(InsertGrid, [])], FEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
 
 /*
-fusion_admin(+Grid, +Col, +Indexes, -Effects)
-Fusion admin retornara una lista de efectos una vez terminadas todas las fusiones
-Fusion admin usa un auxiliar para "otorgarse" un acumulador para los efectos
+fusion_process(+Grid, +Col, +Indexes, -Effects)
+Fusion process se encarga de verificar si luego de las fusiones corresponde remover bloques en desuso.
+En caso afirmativo, se llama recursivamente a si misma para corroborar si se pueden lograr nuevas fusiones
+y revisa nuevamente si hay algun bloque para remover.
+Luego, retorna los efectos pertinentes.
 */
-fusion_admin(Grid, Col, Indexes, Effects) :-
-	fusion_admin_aux(Grid, Col, Indexes, [], Effects).
+
+fusion_process(Grid, Col, Indexes, Effects) :-
+	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid),
+	max_grid(Grid, CurrentMax),
+	max_grid(FusionGrid, NewMax),
+	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements) ->
+
+	append(FusionEffects, PostDeletesMergesEffects, NewEffects),
+	fusion_process(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects),
+	append(NewEffects, NewNewEffects,Effects);
+
+	Effects = FusionEffects).
+
+%-------------------------------------------------------------------------------------------
 
 /*
-fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects)
-Fusion admin aux funcionara de la siguiente manera
+fusion_admin_aux(+Grid, +Col, +Indexes, -Effects, -RGrid)
+Es un wrapper.
+*/
+
+fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid) :-
+	fusion_admin_aux(Grid, Col, Indexes, [], FusionEffects, FusionGrid).
+
+%-------------------------------------------------------------------------------------------
+/*
+fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects, -RGrid)
+Fusion admin funcionara de la siguiente manera
 	fusion loop: se encarga de llevar a cabo todas las fusiones simultaneas y retorna el ultimo
 	efecto junto con todos los bloques nuevos que se crearon y todos los nuevos indices de bloques
 	que se movieron luego de las fusiones
+
 	block fall: aplica gravedad, retorna la nueva grilla y los bloques que se movieron
 
 	si block fall no era necesario, entonces solo me quedo con el efecto de las fusiones y
-	hago un llamado recursivo para volver a fusion admin aux con los bloques que se movieron en las
+	hago un llamado recursivo para volver a fusion admin con los bloques que se movieron en las
 	fusiones simultaneas
 
 	si block fall si era necesario, agrego el efecto a la lista que voy a retornar, agrego los indices
 	de bloques que se movieron a la lista de indices a revisar nuevamente y hago el llamado recursivo
 */
 
-fusion_admin_aux(_Grid, _Col, [], Acc, Acc):- !.
+fusion_admin_aux(Grid, _Col, [], Acc, Acc, Grid) :- !.
 
-fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
+fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid) :-
 	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes),
 	get_columns_to_check_with_adyacent(NewFusionIndexes, Col, ColumnsToCheck),
 	(block_fall(LastGrid, Col, ColumnsToCheck, GravityGrid, NewGravityIndexes) ->
@@ -321,11 +363,11 @@ fusion_admin_aux(Grid, Col, Indexes, Acc, Effects) :-
 	
 	append(NewGravityIndexes, NewFusionIndexes, NewIndexes),
 	
-	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects);
+	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects, RGrid);
 	
 	append(Acc, FinalFusionEffect, NewAcc),
 	
-	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects)), !.
+	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects, RGrid)), !.
 
 %-------------------------------------------------------------------------------------------
 

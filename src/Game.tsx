@@ -141,6 +141,30 @@ function Game() {
       //Ejecuto la animación de efectos y ESPERO que termine completamente
       const finalGrid = await animateEffect(response['Effects'], fusionCount);
 
+      //------- EVALUAR NUEVO MAXIMO --------
+      const currentMax = Math.max(...(finalGrid.filter((v): v is number => v !== '-') ));
+
+      if (currentMax > maxBlock) {
+        if (currentMax >= 512) {
+          setNewMaxBlock(currentMax); 
+        }
+
+        if (currentMax >= 1024 && !showRemovedBlock) {
+          let minDeleted = 2;
+
+          if (currentMax >= 2048) minDeleted = 4;
+          if (currentMax >= 4096) minDeleted = 8;
+          if (currentMax >= 16384) {
+            // A partir de 16k, se elimina el doble del eliminado anterior
+            // Calculo cuántas veces se duplicó después de 16k
+            const duplicaciones = Math.floor(Math.log2(currentMax / 16384));
+            minDeleted = 16 * Math.pow(2, duplicaciones);
+          }
+          setMinBlockDeleted(minDeleted);
+        }
+        setMaxBlock(currentMax);
+      }
+
       // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
       if (fusionCount >= 3) {
         setNotification(`¡Combo x${fusionCount}!`);
@@ -150,7 +174,7 @@ function Game() {
         // Solo se actualizan los hints automaticamente si el usuario activo el sistema de hints.
         // Se llama a handleHintInternal pasando la grilla final y el nuevo bloque para calcular los nuevos combos, sino se hace esto, se actualiza con bloque nuevo y grilla vieja.
         if (nextBlock!=null)
-        await handleHintInternal(nextBlock, finalGrid);
+          await handleHintInternal(nextBlock, finalGrid);
       }
 
     } else { // Si no hay respuesta válida, se reactiva la interfaz
@@ -158,6 +182,11 @@ function Game() {
     }
   }
 
+  /**
+   * Displays each grid of the sequence as the current grid in 0.25sec intervals, 
+   * and considers the other effect information.
+   * @param effects The list of effects to be animated.
+   */
   async function animateEffect(effects: EffectTerm[], fusionCount: number): Promise<Grid> {
     const effect = effects[0];
     const [effectGrid, effectInfo] = effect.args;
@@ -181,36 +210,10 @@ function Game() {
         setGameOver(true);
       }
 
-     //------- EVALUAR NUEVO MAXIMO --------
-  const currentMax = Math.max(...(effectGrid.filter((v): v is number => v !== '-') ));
-
-  if (currentMax > maxBlock) {
-    if (currentMax >= 512) {
-      setNewMaxBlock(currentMax); 
-    }
-
-    if (currentMax >= 1024 && !showRemovedBlock) {
-      let minDeleted = 2;
-
-      if (currentMax >= 2048) minDeleted = 4;
-      if (currentMax >= 4096) minDeleted = 8;
-      if (currentMax >= 16384) {
-        // A partir de 16k, se elimina el doble del eliminado anterior
-        // Calculo cuántas veces se duplicó después de 16k
-        const duplicaciones = Math.floor(Math.log2(currentMax / 16384));
-        minDeleted = 16 * Math.pow(2, duplicaciones);
-      }
-
-      setMinBlockDeleted(minDeleted);
-    }
-
-    setMaxBlock(currentMax);
-  }
-
-  //-------------------------------------  
-
-      return effectGrid; //Se devuelve la última grilla luego de completar todas las animaciones lo cual permite usarla en handleHintInternal 
-      //para calcular los combos correctos. 
+      return effectGrid; 
+      //Se devuelve la última grilla luego de completar 
+      //todas las animaciones lo cual permite usarla en handleHintInternal 
+      //para calcular los combos correctos y para evaluar el nuevo maximo.
     }
 
     await delay(250);
