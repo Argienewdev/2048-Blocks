@@ -302,7 +302,6 @@ body {
   align-items: center;
   z-index: 10000; /* Con esto me aseguro de que no haya nada por encima y evito que se pueda interactuar con la grilla */
   pointer-events: all;
-  animation: fadeIn 0.5s ease-out forwards;
 }
 
 .removedBlockCard {
