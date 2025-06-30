@@ -47,6 +47,16 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+.hints-container {
+  position: relative;
+  height: 40px; /* Altura fija para los hints */
+  text-align: center;
+  color: white;
+  font-size: 12px;
+  opacity: 1;
+  line-height: 20px;
+}
+
 .lane {
   border-radius: 5px;
   cursor: pointer;
@@ -76,6 +86,23 @@ body {
 
 .blockShoot>div {
   flex-grow: 1;
+}
+
+.nextBlockShoot{
+  width: 60px;
+  height: 60px;
+  display: flex;
+  border-radius: 10px;
+}
+
+.nextBlockShoot>div {
+  flex-grow: 1;
+  border: 2px solid white;
+  padding: 4px; /* Espacio entre borde blanco y contenido */
+  border-radius: 10px; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .powerUp1{
@@ -119,25 +146,74 @@ body {
   margin-left: 30px;
 }
 
-/* 
- Estilos para las pistas del Booster Hint que se muestran flotando arriba de cada columna.
- Estas pistas indican el combo que se lograría si se dispara el bloque actual en esa columna.
-*/
-
-.hint {
-  position: absolute;       /* Flotando encima de la grilla */
-  top: -25px;               /* Separación respecto al borde superior de la grilla */
-  left: 50%;                /* Centrado horizontalmente en la columna */
-  transform: translateX(-50%);
-  background: rgba(0, 0, 0, 0.6); /* Fondo semitransparente negro */
-  padding: 2px 6px;         /* Espaciado interno */
-  border-radius: 4px;       /* Bordes redondeados */
-  font-size: 12px;          /* Tamaño de fuente */
-  color: white;             /* Color del texto */
-  opacity: 0.8;             /* Semitransparente */
-  pointer-events: none;     /* No bloquea clicks */
-  z-index: 3;               /* Asegura que quede encima de los bloques */
-  white-space: nowrap;      /* Evita que el texto se corte en varias líneas */
-  text-align: center;
+.contenedorFinal{
+  background-color: black;
+  padding: 10px;
 }
 
+.game-over-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000; /* Con esto me aseguro de que no haya nada por encima y evito que se pueda interactuar con la grilla */
+  pointer-events: all;
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+.game-over-card {
+  background-color: #1e1e1e;
+  color: white;
+  padding: 30px 50px;
+  border-radius: 12px;
+  text-align: center;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.1);
+  font-family: "Century Gothic", sans-serif;
+  animation: scaleIn 0.4s ease-out forwards;
+}
+
+.game-over-card h2 {
+  font-size: 36px;
+  margin-bottom: 10px;
+}
+
+.game-over-card p {
+  font-size: 20px;
+  margin: 10px 0 20px 0;
+}
+
+.game-over-card button {
+  padding: 10px 20px;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  background-color: white;
+  color: black;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.game-over-card button:hover {
+  background-color: #ddd;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

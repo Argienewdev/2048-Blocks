@@ -1,9 +1,3 @@
-/*
- Board.tsx - Modificaciones para mostrar pistas visuales del Booster Hint
- Este código recibe una lista de "hints" y dibuja sobre cada columna una pista flotante,
- indicando el combo potencial que se lograría si se dispara el bloque actual en esa columna.
-*/
-
 import Block, { Position } from './Block';
 import { Grid } from './Game';
 
@@ -11,37 +5,31 @@ interface BoardProps {
     grid: Grid;
     numOfColumns: number;
     onLaneClick: (lane: number) => void;
-    // NUEVO: Lista de pistas a mostrar, una por cada columna
-    hints?: { col: number, combo: number }[];
+    hints?: { col: number; combo: number; maxBlock?: number }[];
+    shootBlock: number | null;
 }
 
-function Board({ grid, numOfColumns, onLaneClick, hints = [] }: BoardProps) {
+function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock }: BoardProps) {
     const numOfRows = grid.length / numOfColumns;
 
     return (
         <div className="board">
             <div className="blocks" style={{ gridTemplateColumns: `repeat(${numOfColumns}, 70px)`, gridTemplateRows: `repeat(${numOfRows}, 70px)` }}>
 
-                {/* NUEVO: Dibujamos una pista sobre cada columna si existe un hint para esa columna */}
-                {hints.map((hint, i) => (
-                    <div
-                        key={`hint-${i}`}
-                        className="hint"
-                        style={{
-                            gridColumn: hint.col,
-                            gridRow: 1,
-                            position: 'relative',
-                            textAlign: 'center',
-                            opacity: 0.7,
-                            color: 'white',
-                            fontSize: '12px',
-                            zIndex: 2
-                        }}
-                    >
+                {/* Renderizamos las zonas para los hints de cada columna */}
+                {Array.from({ length: numOfColumns }).map((_, i) => {
+                const hint = hints.find(h => h.col === i + 1); // Busca el hint para la columna i+1
+                return (
+                    <div className="hints-container" key={`hint-${i}`}>
+                        {hints.length > 0 && hint && (
+                        <>
                         {hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo'}
-                    </div>
-                ))}
-
+                        {hint.maxBlock && hint.maxBlock > 0 ? `Máx: ${hint.maxBlock}` : ''}
+                        </>
+                    )}
+</div>
+                );
+                })}
                 {/* Renderizamos las zonas clickeables de cada columna */}
                 {Array.from({ length: numOfColumns }).map((_, i) => (
                     <div
