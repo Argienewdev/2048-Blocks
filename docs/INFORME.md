@@ -5,7 +5,7 @@
 - `Salamanca, Santiago`
 - `Santa María, Joaquín`
 ---
-Dadas las principales funcionales a ser contempladas tal como estan presentadas en el repositorio de GitHub, a continuacion se describirá como se implementaron.
+Dadas las principales funcionalidades a ser contempladas tal como estan presentadas en el repositorio de GitHub, a continuacion se describirá como se implementaron.
 
 - <span style="color:#fc7f40">📌**Aviso "Combo x N.**</span> 
 

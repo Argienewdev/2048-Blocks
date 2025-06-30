@@ -42,7 +42,7 @@ function Game() {
   const [hintsEnabled, setHintsEnabled] = useState<boolean>(false);
   const [nextBlockVisible, setNextBlockVisible] = useState<boolean>(false);
   // Estado que almacena el próximo bloque a utilizar si el modo está activado
-  const [nextBlock, setNextBlock] = useState<number | null>(null);
+  const [nextBlock, setNextBlock] = useState<number>(0);
 
   //------- NUEVOS ESTADOS AGREGADOS --------
   const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
@@ -102,6 +102,12 @@ function Game() {
     setShootBlock(response['Block1']);
     setNumOfColumns(response['NumOfColumns']);
     setNextBlock(response['Block2']);
+
+    //------- INICIALIZAR MAXIMO INICIAL --------
+    const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
+    const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
+    setMaxBlock(initialMax);
+    //--------------------------------------------
   }
 
   /**
@@ -128,9 +134,29 @@ function Game() {
         eff.args[1].length > 0
       ).length;
       
+
+      //Se contempla el caso en el que el siguiente bloque fue eliminado
+      //en el tiro anterior a que este sea usado, por lo que se debe pedir
+      //un nuevo bloque aleatorio en base a la nueva grilla
       const newBlockValue = response['Block'];
-      setShootBlock(nextBlock);
-      setNextBlock(newBlockValue);
+      const newRandomBlockLastGrid = response['RGrid'];
+      if(response['MaxRemovedBlock'] >= nextBlock){
+        const parsedFinalGrid = JSON.stringify(newRandomBlockLastGrid).replace(/"/g, '');
+        const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block)`;
+        setWaiting(true);
+        const newRandomBlockResponse = await pengine.query(newRandomBlockQuery);
+        const newRandomBlock = newRandomBlockResponse['Block'];
+        if(newRandomBlockResponse){
+          setShootBlock(newRandomBlock)
+          setNextBlock(newBlockValue);
+          setWaiting(false);
+        }else{
+          setWaiting(false);
+        }
+      }else{
+        setShootBlock(nextBlock);
+        setNextBlock(newBlockValue);
+      }
 
       // Paso fusionCount a la función de animación
       //Ejecuto la animación de efectos y ESPERO que termine completamente
@@ -146,7 +172,7 @@ function Game() {
           setNewMaxBlock(currentMax); 
         }
         
-        if (!showRemovedBlock) {
+        if (!showRemovedBlock && removedBlock !== 0) {
           setMinBlockDeleted(removedBlock);
         }
       }
