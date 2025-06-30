@@ -25,6 +25,7 @@ function Game() {
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
+  const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false); // Nueva bandera para controlar el segundo overlay
 
   // Estados para el sistema de notificaciones de combos
   // - notification: Almacena el mensaje a mostrar ("¡Combo x3!", etc.)
@@ -44,10 +45,10 @@ function Game() {
   const [nextBlock, setNextBlock] = useState<number | null>(null);
 
   //------- NUEVOS ESTADOS AGREGADOS --------
-const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
-const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
-const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
-//-----------------------------------------
+  const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
+  const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
+  const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
+  //-----------------------------------------
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -113,8 +114,8 @@ const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // 
    */
   async function handleLaneClick(lane: number) {
     // No effect if waiting. 
-    if (waiting || gameOver || newMaxBlock !== null || minBlockDeleted !== null) {
-    return;
+    if (waiting || gameOver || newMaxBlock !== null || minBlockDeleted !== null || (minBlockDeleted !== null && !showRemovedBlock)) {
+      return;
     }
     /*
     Build Prolog query, which will be something like: 
@@ -188,7 +189,7 @@ const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // 
       setNewMaxBlock(currentMax); 
     }
 
-    if (currentMax >= 1024) {
+    if (currentMax >= 1024 && !showRemovedBlock) {
       let minDeleted = 2;
 
       if (currentMax >= 2048) minDeleted = 4;
@@ -277,6 +278,7 @@ const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // 
     setScore(0);
     setHints([]);
     setHintsEnabled(false);
+    setShowRemovedBlock(false);
     await initGame();
   }
 
@@ -297,28 +299,42 @@ const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // 
       )}
 
       {/*------- CARTEL BLOQUE ELIMINADO -------*/}
-      {minBlockDeleted !== null && (
-        <div className="game-over-overlay">
-          <div className="game-over-card">
+      {minBlockDeleted !== null && showRemovedBlock && (
+        <div className="removedBlockOverlay">
+          <div className="removedBlockCard">
             <h2>¡Bloque eliminado!</h2>
             <p>El bloque {minBlockDeleted} fue eliminado de la grilla.</p>
-            <button onClick={() => setMinBlockDeleted(null)}>Aceptar</button>
+            <div className='removedBlockBlockContainerDiv'>
+              {(<Block value={minBlockDeleted!} position={[0, 0]} />)}
+            </div>
+            <button onClick={() => {
+              setMinBlockDeleted(null);
+              setShowRemovedBlock(false)
+            }}>
+              Aceptar
+            </button>
           </div>
         </div>
       )}
-      {/*--------------------------------------*/}
       {/*------- CARTEL NUEVO MAXIMO -------*/}
-      {newMaxBlock !== null && (
-        <div className="game-over-overlay">
-          <div className="game-over-card">
+      {!notification && newMaxBlock !== null && (
+        <div className="newMaxBlockOverlay">
+          <div className="newMaxBlockCard">
             <h2>¡Nuevo máximo alcanzado!</h2>
-            <p>Se alcanzó el bloque {newMaxBlock}</p>
-            <button onClick={() => setNewMaxBlock(null)}>Aceptar</button>
+            <p>Se alcanzó el bloque</p>
+            <div className='newMaxBlockBlockContainerDiv'>
+              {(<Block value={newMaxBlock!} position={[0, 0]} />)}
+            </div>
+            <button onClick={() => {
+              setNewMaxBlock(null);
+              setShowRemovedBlock(true);
+             }}>
+              Aceptar
+            </button>
           </div>
         </div>
       )}
-      {/*-----------------------------------*/}
-      {/* notificaciones de combos */}
+      {/*------- NOTIFICACIONES DE COMBOS -------*/}
       {notification && (
         <div
           // - 'show' para aparición inicial
@@ -335,10 +351,10 @@ const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // 
 
       <Board
         grid={grid}
-    numOfColumns={numOfColumns!}
-    onLaneClick={handleLaneClick}
-    hints={hints}
-    shootBlock={shootBlock}
+        numOfColumns={numOfColumns!}
+        onLaneClick={handleLaneClick}
+        hints={hints}
+        shootBlock={shootBlock}
       />
 
       <div className="footer">

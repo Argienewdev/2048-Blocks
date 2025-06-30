@@ -147,10 +147,14 @@ remove_block(Block, Grid, NewGrid, Indexes) :-
 
 remove_block_aux(_, _, [], _, [], Acc, Acc) :- !.
 
-remove_block_aux(Block, Repl, [Block|T], I, [Repl|NT], Acc, Indexes) :-
+%Si es un numero y es menor o igual al bloque a eliminar, se elimina.
+remove_block_aux(Block, Repl, [H|T], I, [Repl|NT], Acc, Indexes) :-
+	number(H),
+	Block >= H,
     I1 is I + 1, !,
-    remove_block_aux(Block, Repl, T, I1, NT, [I|Acc], Indexes).
+    remove_block_aux(Block, Repl, T, I1, NT, Acc, Indexes).
 
+%Si no es igual al bloque a eliminar se deja igual.
 remove_block_aux(Block, Repl, [H|T], I, [H|NT], Acc, Indexes) :-
     Block \= H,
     I1 is I + 1, !,
