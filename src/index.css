@@ -91,40 +91,23 @@ body {
   padding: 5px;
 }
 
-.blockShoot>div {
-  flex-grow: 1;
-}
-
-.nextBlockShoot{
-  width: 50px;
-  height: 50px;
-  display: flex;
-  border-radius: 10px;
-  padding: 4px; /* Espacio entre borde blanco y contenido */
-  justify-content: center;
-  align-items: center;
-}
-
-.nextBlockShoot.visible{
-  border: 2px solid white;
-}
-
 .boosterBloqueSiguiente{
   margin-left: 30px;
   height: 70px;
   width:  70px;
   border-radius: 10px;
   display: flex;
-  padding: 3px; /* Espacio entre borde blanco y contenido */
+  padding: 5px; /* Espacio entre borde blanco y contenido */
   justify-content: center;
   align-items: center;
-  background-color: transparent;
+  background-color: rgb(28 28 30);
   color: white;
   font-size: 24px;
 }
 
 .boosterBloqueSiguiente.visible{
   border: 2px solid white;
+  background-color: transparent;
 }
 
 .boosterHintJugada{
@@ -143,8 +126,14 @@ body {
 
 .boosterHintJugada.visible {
   border: 2px solid white;
-  background-color: rgb(50, 50, 54);
+  background-color: transparent;
   color: white;
+  animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
 .combo-notification {
@@ -172,11 +161,6 @@ body {
 .combo-notification.fade-out {
   opacity: 0;
   transform: translate(-50%, -60%);
-}
-
-.contenedorFinal{
-  background-color: black;
-  padding: 10px;
 }
 
 .game-over-overlay {
