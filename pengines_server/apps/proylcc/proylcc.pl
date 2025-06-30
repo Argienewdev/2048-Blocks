@@ -1,7 +1,7 @@
 :- module(proylcc, 
 	[  
 		randomBlock/2,
-		shoot/5,
+		shoot/6,
 		booster_hint/4
 	]).
 :- use_module(library(lists)).
@@ -194,7 +194,7 @@ Se retorna:
 	Los indices de los bloques que se movieron
 */
 
-apply_deletes_and_merges(Grid, Col, CurrentMax, NewMax, Effects, RGrid, Movements) :-
+apply_deletes_and_merges(Grid, Col, CurrentMax, NewMax, Effects, RGrid, Movements, BlockToRemove) :-
     evaluate_elimination(CurrentMax, NewMax, BlockToRemove),
 	remove_block(BlockToRemove, Grid, RemovedBlockGrid, RemovedIndexes),
 	get_columns_to_check(RemovedIndexes, Col, ColumnsToCheck),
@@ -238,7 +238,7 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 	hint(Col, Combo, MaxBlock),        % por cada columna, armo un un par hint(Col, Combo, MaxBlock)
 		(
 		between(1, NumCols, Col),                 % asigno los indices de las columnas
-		shoot(Block, Col, Grid, NumCols, Effects),% simulo el shoot (la jugada) en esa columna
+		shoot(Block, Col, Grid, NumCols, Effects, _),% simulo el shoot (la jugada) en esa columna
 		count_combo(Effects, Combo),              % cuento cuantas fusiones se produjeron
 		max_newblock_from_effects(Effects, MaxBlock)			  % encuentro el valor maximo producto de la fusion
 		),
@@ -280,47 +280,63 @@ max_newblock_from_effects(Effects, Max) :-
 
 %-------------------------------------------------------------------------------------------
 /*
-shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects)
+shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects, -MaxRemovedBlock)
 shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.
 Luego, este procede del siguiente modo:
 	block_insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
 	fusion_process: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
 	append: junta los efectos para retornarlos
+
+Retorna:
+	La lista de efectos correspondientes
+	El numero maximo eliminado de la grilla
 */
 
-shoot(Block, Lane, Grid, Col, Effects) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock) :-
     gridSize(_), !,
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
-shoot(Block, Lane, Grid, Col, Effects) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock) :-
     length(Grid, GridSize),
     assert(gridSize(GridSize)),
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
 
 /*
-fusion_process(+Grid, +Col, +Indexes, -Effects)
-Fusion process se encarga de verificar si luego de las fusiones corresponde remover bloques en desuso.
-En caso afirmativo, se llama recursivamente a si misma para corroborar si se pueden lograr nuevas fusiones
-y revisa nuevamente si hay algun bloque para remover.
-Luego, retorna los efectos pertinentes.
+fusion_process_aux(+Grid, +Col, +Indexes, -Effects)
+Es un wrapper.
 */
 
-fusion_process(Grid, Col, Indexes, Effects) :-
+fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock) :-
+	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock).
+/*
+
+%-------------------------------------------------------------------------------------------
+
+fusion_process_aux(+Grid, +Col, +Indexes, -Effects, +RemovedBlockAcc -MaxRemovedBlock)
+Este predicado se encarga de verificar si luego de las fusiones corresponde remover bloques en desuso.
+En caso afirmativo, se llama recursivamente a si misma para corroborar si se pueden lograr nuevas fusiones
+y revisa nuevamente si hay algun bloque para remover.
+Luego, retorna los efectos pertinentes y el bloque mas grande eliminado.
+*/
+
+
+fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock) :-
 	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid),
 	max_grid(Grid, CurrentMax),
 	max_grid(FusionGrid, NewMax),
-	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements) ->
+	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements, RemovedBlock) ->
 
 	append(FusionEffects, PostDeletesMergesEffects, NewEffects),
-	fusion_process(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects),
+	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock),
 	append(NewEffects, NewNewEffects,Effects);
 
+	MaxRemovedBlock = RemovedBlockAcc,
 	Effects = FusionEffects).
 
 %-------------------------------------------------------------------------------------------
@@ -1032,6 +1048,7 @@ best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndex, BestMatchMerges,
 	nth0(BestMatchIndex, MatchMerges, BestMatchMerges),
 	nth0(BestMatchIndex, MergesList, BestMatchMergesIndexes), !.
 
+%-------------------------------------------------------------------------------------------
 
 /*
 best_match_aux(+Grid, +Col, +MIndexes, +InvalidIndexes, -MatchMerges, -MergesList)

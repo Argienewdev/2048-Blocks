@@ -102,11 +102,6 @@ function Game() {
     setShootBlock(response['Block1']);
     setNumOfColumns(response['NumOfColumns']);
     setNextBlock(response['Block2']);
-
-    //------- INICIALIZAR MAXIMO INICIAL --------
-    const initialMax = Math.max(...response['Grid'].filter((v: any) => v !== '-'));
-    setMaxBlock(initialMax);
-    //--------------------------------------------
   }
 
   /**
@@ -122,7 +117,7 @@ function Game() {
     shoot(2, 2, [4,2,8,64,32,2,-,-,4,16,-,-,-,-,2,-,-,-,-,16,-,-,-,-,2,-,-,-,-,-,-,-,-,-,-], 5, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block).
     */
     const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
     setWaiting(true);
     const response = await pengine.query(queryS);
 
@@ -143,26 +138,17 @@ function Game() {
 
       //------- EVALUAR NUEVO MAXIMO --------
       const currentMax = Math.max(...(finalGrid.filter((v): v is number => v !== '-') ));
-
+      const removedBlock = response['MaxRemovedBlock'];
       if (currentMax > maxBlock) {
+        setMaxBlock(currentMax);
+
         if (currentMax >= 512) {
           setNewMaxBlock(currentMax); 
         }
-
-        if (currentMax >= 1024 && !showRemovedBlock) {
-          let minDeleted = 2;
-
-          if (currentMax >= 2048) minDeleted = 4;
-          if (currentMax >= 4096) minDeleted = 8;
-          if (currentMax >= 16384) {
-            // A partir de 16k, se elimina el doble del eliminado anterior
-            // Calculo cuántas veces se duplicó después de 16k
-            const duplicaciones = Math.floor(Math.log2(currentMax / 16384));
-            minDeleted = 16 * Math.pow(2, duplicaciones);
-          }
-          setMinBlockDeleted(minDeleted);
+        
+        if (!showRemovedBlock) {
+          setMinBlockDeleted(removedBlock);
         }
-        setMaxBlock(currentMax);
       }
 
       // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
