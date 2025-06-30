@@ -24,10 +24,11 @@ function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock }: Boar
                         {hints.length > 0 && hint && (
                         <>
                         {hint.combo >= 3 ? `Combo x${hint.combo}` : 'Sin combo'}
+                        <br />
                         {hint.maxBlock && hint.maxBlock > 0 ? `Máx: ${hint.maxBlock}` : ''}
                         </>
                     )}
-</div>
+                    </div>
                 );
                 })}
                 {/* Renderizamos las zonas clickeables de cada columna */}

@@ -213,7 +213,7 @@ randomBlock(Grid, Block):-
 booster_hint(Block, Grid, NumCols, Hints) :-
     findall(
 	hint(Col, Combo, MaxBlock),        % por cada columna, armo un un par hint(Col, Combo, MaxBlock)
-	(
+		(
 		between(1, NumCols, Col),                 % asigno los indices de las columnas
 		shoot(Block, Col, Grid, NumCols, Effects),% simulo el shoot (la jugada) en esa columna
 		count_combo(Effects, Combo),              % cuento cuantas fusiones se produjeron

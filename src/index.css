@@ -1,12 +1,16 @@
 body {
   font: 14px "Century Gothic", Futura, sans-serif;
   margin: 0;
+  height: 100%;
+  background-color: black;
 }
 
 .game {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  height: 100vh; /* Ocupa toda la altura de la pantalla */
   background: black;
 }
 
@@ -45,6 +49,8 @@ body {
   font-size: 25px;
   color: white;
   font-family: Arial, Helvetica, sans-serif;
+  height: 100%;
+  width: 100%;
 }
 
 .hints-container {
@@ -71,6 +77,7 @@ body {
   align-self: stretch;
   display: flex;
   justify-content: center;
+  align-items: center;
   border-top: 1px solid lightgray;
   padding: 5px;
 }
@@ -89,27 +96,55 @@ body {
 }
 
 .nextBlockShoot{
-  width: 60px;
-  height: 60px;
+  width: 50px;
+  height: 50px;
   display: flex;
   border-radius: 10px;
-}
-
-.nextBlockShoot>div {
-  flex-grow: 1;
-  border: 2px solid white;
   padding: 4px; /* Espacio entre borde blanco y contenido */
-  border-radius: 10px; 
-  display: flex;
   justify-content: center;
   align-items: center;
 }
 
-.powerUp1{
-  border-radius: 50%;
+.nextBlockShoot.visible{
+  border: 2px solid white;
+}
+
+.boosterBloqueSiguiente{
+  margin-left: 30px;
   height: 70px;
   width:  70px;
+  border-radius: 10px;
+  display: flex;
+  padding: 3px; /* Espacio entre borde blanco y contenido */
+  justify-content: center;
+  align-items: center;
+  background-color: transparent;
+  color: white;
+  font-size: 24px;
+}
+
+.boosterBloqueSiguiente.visible{
+  border: 2px solid white;
+}
+
+.boosterHintJugada{
   margin-right: 30px;
+  height: 70px;
+  width:  70px;
+  border-radius: 10px;
+  display: flex;
+  padding: 3px; /* Espacio entre borde blanco y contenido */
+  justify-content: center;
+  align-items: center;
+  background-color: rgb(28 28 30);
+  color: white;
+  font-size: 15px;
+}
+
+.boosterHintJugada.visible {
+  border: 2px solid white;
+  background-color: rgb(50, 50, 54);
+  color: white;
 }
 
 .combo-notification {
@@ -137,13 +172,6 @@ body {
 .combo-notification.fade-out {
   opacity: 0;
   transform: translate(-50%, -60%);
-}
-
-.powerUp2{
-  border-radius: 50%;
-  height: 70px;
-  width:  70px;
-  margin-left: 30px;
 }
 
 .contenedorFinal{

@@ -280,21 +280,17 @@ function Game() {
       />
 
       <div className="footer">
-        <button className="powerUp1" onClick={handleHint}>Hint Jugada</button>
+        <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={handleHint}>Hint Jugada</button>
+
         <div className="blockShoot">
           <Block value={shootBlock!} position={[0, 0]} />
         </div>
-        <button className="powerUp2" onClick={() => setNextBlockVisible(!nextBlockVisible)}>
-          Bloque siguiente
+
+        <button className={`boosterBloqueSiguiente ${nextBlockVisible ? 'visible' : ''}`} onClick={() => setNextBlockVisible(!nextBlockVisible)}>
+          {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} />)}
         </button>
+
       </div>
-      <div className="contenedorFinal">
-  <div className="nextBlockShoot">
-    {nextBlockVisible && (
-      <Block value={nextBlock!} position={[0, 0]} />
-    )}
-  </div>
-</div>
     </div>
   );
 }
