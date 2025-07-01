@@ -219,10 +219,45 @@ Dadas las principales funcionalidades a ser contempladas tal como estan presenta
 
 ---
 
-### 🔽 Casos de prueba relevantes
+# 🔽 Puntos a destacar
+
+- Se creo el concepto de "Game Over", es decir, al no tener mas espacios libres en la grilla se muestra un cartel de fin de juego que contabiliza los puntos y ofrece la opcion de reiniciar y volver a jugar.
+
+- Se retoco el frontEnd con fin de estilizar el juego para que se adapte *mejor* a pantallas de distintos tamaños.
+
+- Se estilizaron las notificaciones para que se parezcan a las del juego original.
+
+- Se distribuyo eficientemente la carga de tareas entre el frontEnd y el backEnd, es decir, los calculos que se podian hacer desde el frontEnd no fueron consultados al backEnd.
+
+
+
+---
+
+# 🔽 Casos de prueba relevantes
 
         Aclaracion:
             -El rendimiento del juego no se ve reflejado en las grabaciones
 
-##### Caso mergeo en posición actual
-![Alt Text](/casosDePrueba/casoDePrueba1.gif)
+## Caso fusiones multiples hacia arriba + remocion de multiples bloques en desuso + fusiones multiples
+
+![Alt Text](/docs/casosDePrueba/casoDePrueba1.gif)
+
+Si bien en este caso se muestran bloques que no debieran estar presentes a esa altura del juego (2,4,8), este caso *hardcodeado* ilustra la capacidad del sistema a resolver estas situaciones.
+
+## Caso fusiones multiples en mismo ciclo no constituye combo
+
+![Alt Text](/docs/casosDePrueba/casoDePrueba2.gif)
+
+![Alt Text](/docs/casosDePrueba/casoDePrueba3.gif)
+
+En este caso se puede apreciar el concepto de ciclo, ya que 6 bloques se fusionaron resultando en 3 pero para el conteo del combo, esto vale 1, tal como es en el juego original.
+
+## Caso fusion sobre posicion distinta a la de caida
+
+![Alt Text](/docs/casosDePrueba/casoDePrueba4.gif)
+
+En este caso se puede ver que la fusion no se hace sobre la posicion donde cayo el bloque, sino que se encuentra un mejor candidato y la fusion culmina sobre el mismo tal como en el juego original.
+
+## Caso fin de juego
+
+![Alt Text](/docs/casosDePrueba/casoDePrueba5.gif)
