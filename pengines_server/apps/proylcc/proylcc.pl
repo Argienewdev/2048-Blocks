@@ -11,7 +11,7 @@
 /*
 TESTING: PARA NO TENER QUE HACER SHOOT TODO EL TIEMPO
 TODO: BORRAR ANTES DE ENTREGAR
-gridSize(35).
+gridSize(2).
 */
 
 /*
@@ -106,6 +106,7 @@ min_max_grid_values_permited retorna el rengo menor y mayor segun grilla, luego 
 min_max_grid_values_permited(MaxActual, MinPermitido, MaxPermitido)
 */
 
+min_max_grid_values_permited(0, 2, 4) :- !.
 min_max_grid_values_permited(Max, 2, 4) :- member(Max, [2,4,8]), !.
 min_max_grid_values_permited(16, 2, 8) :- !.
 min_max_grid_values_permited(32, 2, 16) :- !.
@@ -116,12 +117,12 @@ min_max_grid_values_permited(2048, 8, 256) :- !.
 min_max_grid_values_permited(Max, 16, 512) :- member(Max, [4096,8192]), !.
 min_max_grid_values_permited(16384, 32, 1024) :- !.
 
-/* A partir de MaxAct >= 16000, el rango permitido (MinPerm y MaxPerm) se duplica
-cada vez que MaxAct se duplica. Se usa K= piso de log(MaxAct / 16000) / log2 para contar cuántas
-duplicaciones hubo respecto del valor base (16000), luego se incrementan K veces los exponentes.
+/* A partir de MaxAct >= 16384, el rango permitido (MinPerm y MaxPerm) se duplica
+cada vez que MaxAct se duplica. Se usa K= piso de log(MaxAct / 16384) / log2 para contar cuántas
+duplicaciones hubo respecto del valor base (16384), luego se incrementan K veces los exponentes.
 */
 min_max_grid_values_permited(MaxAct, MinPerm, MaxPerm) :-
-    Base is 16000,
+    Base is 16384,
     K is floor(log(MaxAct / Base) / log(2)),
     ExpMin is 5 + K,
     ExpMax is 10 + K,
@@ -249,7 +250,7 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 
 % count_combo(+Effects, -Count)
 %
-% Dada la lista de Effects (como la que produce shoot/5),
+% Dada la lista de Effects (como la que produce shoot/6),
 % cuenta cuántos efectos contienen al menos una fusión newBlock(_).
 % Ese número se devuelve como Count.
 

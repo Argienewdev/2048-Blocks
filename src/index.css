@@ -136,7 +136,7 @@ body {
   50% { opacity: 0.4; }
 }
 
-.combo-notification {
+.comboNotification {
   position: fixed;
   top: 50%;
   left: 50%;
@@ -153,12 +153,12 @@ body {
   pointer-events: none;
 }
 
-.combo-notification.show {
+.comboNotification.show {
   opacity: 1;
   transform: translate(-50%, -50%);
 }
 
-.combo-notification.fade-out {
+.comboNotification.fade-out {
   opacity: 0;
   transform: translate(-50%, -60%);
 }
@@ -340,6 +340,65 @@ body {
 }
 
 .removedBlockBlockContainerDiv {
+  background-color: transparent;
+  border: 2px solid white;
+  border-radius: 10px;
+  padding: 5px;
+  margin: 10px;
+  height: 70px;
+  width:  70px;
+}
+
+.newBlockAddedOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 10000; /* Con esto me aseguro de que no haya nada por encima y evito que se pueda interactuar con la grilla */
+  pointer-events: all;
+}
+
+.newBlockAddedCard {
+  display: flex;
+  flex-direction: column;
+  background-color: #1e1e1e;
+  color: white;
+  padding: 30px 50px;
+  border-radius: 12px;
+  text-align: center;
+  align-items: center;
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.1);
+  font-family: "Century Gothic", sans-serif;
+  animation: scaleIn 0.4s ease-out forwards;
+}
+
+.newBlockAddedCard h2 {
+  font-size: 36px;
+  margin: 10px;
+}
+
+.newBlockAddedCard p {
+  font-size: 20px;
+  margin: 10px;
+}
+
+.newBlockAddedCard button {
+  padding: 10px 20px;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  background-color: white;
+  color: black;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.newBlockAddedBlockContainerDiv {
   background-color: transparent;
   border: 2px solid white;
   border-radius: 10px;

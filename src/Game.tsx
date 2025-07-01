@@ -25,13 +25,14 @@ function Game() {
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
-  const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false); // Nueva bandera para controlar el segundo overlay
+  const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false);
+  const [showNewBlockAdded, setShowNewBlockAdded] = useState<boolean>(false);
 
   // Estados para el sistema de notificaciones de combos
-  // - notification: Almacena el mensaje a mostrar ("¡Combo x3!", etc.)
+  // - comboNotification: Almacena el mensaje a mostrar ("¡Combo x3!", etc.)
   // - fade: Controla la animación de desvanecimiento al final
   // - show: Controla la visibilidad inicial de la notificación
-  const [notification, setNotification] = useState<string | null>(null);
+  const [comboNotification, setComboNotification] = useState<string | null>(null);
   const [fade, setFade] = useState<boolean>(false);
   const [show, setShow] = useState<boolean>(false);
   const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
@@ -47,6 +48,7 @@ function Game() {
   //------- NUEVOS ESTADOS AGREGADOS --------
   const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
   const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
+  const [newBlockAdded, setNewBlockAdded] = useState<number | null>(null); // Cartel de nuevo bloque
   const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
   //-----------------------------------------
 
@@ -63,10 +65,10 @@ function Game() {
   }, [pengine]);
 
   // Efecto para manejar la animación de notificaciones
-  // Se activa cada vez que cambia el estado 'notification'
+  // Se activa cada vez que cambia el estado 'comboNotification'
   useEffect(() => {
     // Si no hay notificación, no hacer nada
-    if (!notification) return;
+    if (!comboNotification) return;
 
     // Muestro la notificación inmediatamente
     setShow(true);
@@ -79,7 +81,7 @@ function Game() {
 
     // Programo la eliminación completa después de 1s
     const removeTimeout = setTimeout(() => {
-      setNotification(null);  // Limpiar el mensaje
+      setComboNotification(null);  // Limpiar el mensaje
       setFade(false);         // Resetear estado de desvanecimiento
       setShow(false);         // Ocultar completamente el elemento
     }, 1000);
@@ -89,7 +91,7 @@ function Game() {
       clearTimeout(fadeTimeout);
       clearTimeout(removeTimeout);
     };
-  }, [notification]); // Dependencia: solo se ejecuta cuando notification cambia
+  }, [comboNotification]); // Dependencia: solo se ejecuta cuando comboNotification cambia
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create()); // Await until the server is initialized
@@ -167,6 +169,25 @@ function Game() {
       const removedBlock = response['MaxRemovedBlock'];
       if (currentMax > maxBlock) {
         setMaxBlock(currentMax);
+        
+        let newBlockAdded = 0;
+        if (currentMax >= 16) newBlockAdded = 8;
+        if (currentMax >= 32) newBlockAdded = 16;
+        if (currentMax >= 64) newBlockAdded = 32;
+        if (currentMax >= 128) newBlockAdded = 64;
+        if (currentMax >= 1024) newBlockAdded = 128;
+        if (currentMax >= 2048) newBlockAdded = 256;
+        if (currentMax >= 4096) newBlockAdded = 512;
+        if (currentMax >= 16384) newBlockAdded = 1024;
+        if (currentMax > 16384) {
+          // A partir de 16k, se agrega el doble del maximo anterior
+          // Calculo cuántas veces se duplicó después de 16k
+          const duplicaciones = Math.floor(Math.log2(currentMax / 16384));
+          newBlockAdded = 1024 * Math.pow(2, duplicaciones);
+        }
+        if(newBlockAdded !== 0){
+          setNewBlockAdded(newBlockAdded);
+        }
 
         if (currentMax >= 512) {
           setNewMaxBlock(currentMax); 
@@ -176,10 +197,9 @@ function Game() {
           setMinBlockDeleted(removedBlock);
         }
       }
-
       // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
       if (fusionCount >= 3) {
-        setNotification(`¡Combo x${fusionCount}!`);
+        setComboNotification(`¡Combo x${fusionCount}!`);
       }
 
       if (hintsEnabled) {
@@ -313,6 +333,44 @@ function Game() {
         </div>
       )}
 
+      {/*------- CARTEL NUEVO MAXIMO -------*/}
+      {!comboNotification && newMaxBlock !== null && (
+        <div className="newMaxBlockOverlay">
+          <div className="newMaxBlockCard">
+            <h2>¡Nuevo máximo alcanzado!</h2>
+            <p>Se alcanzó el bloque</p>
+            <div className='newMaxBlockBlockContainerDiv'>
+              {(<Block value={newMaxBlock!} position={[0, 0]} />)}
+            </div>
+            <button onClick={() => {
+              setNewMaxBlock(null);
+              setShowNewBlockAdded(true);
+            }}>
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
+      {/*------- CARTEL BLOQUE AGREGADO -------*/}
+      {newBlockAdded !== null &&
+      (showNewBlockAdded || (newMaxBlock == null && !comboNotification)) && (
+        <div className="newBlockAddedOverlay">
+          <div className="newBlockAddedCard">
+            <h2>¡Bloque agregado!</h2>
+            <p>El bloque {newBlockAdded} fue agregado al rango de tiro.</p>
+            <div className='newBlockAddedBlockContainerDiv'>
+              {(<Block value={newBlockAdded!} position={[0, 0]} />)}
+            </div>
+            <button onClick={() => {
+              setNewBlockAdded(null);
+              setShowNewBlockAdded(false);
+              setShowRemovedBlock(true);
+              }}>
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
       {/*------- CARTEL BLOQUE ELIMINADO -------*/}
       {minBlockDeleted !== null && showRemovedBlock && (
         <div className="removedBlockOverlay">
@@ -331,32 +389,14 @@ function Game() {
           </div>
         </div>
       )}
-      {/*------- CARTEL NUEVO MAXIMO -------*/}
-      {!notification && newMaxBlock !== null && (
-        <div className="newMaxBlockOverlay">
-          <div className="newMaxBlockCard">
-            <h2>¡Nuevo máximo alcanzado!</h2>
-            <p>Se alcanzó el bloque</p>
-            <div className='newMaxBlockBlockContainerDiv'>
-              {(<Block value={newMaxBlock!} position={[0, 0]} />)}
-            </div>
-            <button onClick={() => {
-              setNewMaxBlock(null);
-              setShowRemovedBlock(true);
-             }}>
-              Aceptar
-            </button>
-          </div>
-        </div>
-      )}
       {/*------- NOTIFICACIONES DE COMBOS -------*/}
-      {notification && (
+      {comboNotification && (
         <div
           // - 'show' para aparición inicial
           // - 'fade-out' para desvanecimiento
-          className={`combo-notification ${show ? 'show' : ''} ${fade ? 'fade-out' : ''}`}
+          className={`comboNotification ${show ? 'show' : ''} ${fade ? 'fade-out' : ''}`}
         >
-          {notification}
+          {comboNotification}
         </div>
       )}
 
@@ -373,16 +413,15 @@ function Game() {
       />
 
       <div className="footer">
-        <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={handleHint}>Hint Jugada</button>
-
+        <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={handleHint}>
+          Hint Jugada
+        </button>
         <div className="blockShoot">
           <Block value={shootBlock!} position={[0, 0]} />
         </div>
-
         <button className={`boosterBloqueSiguiente ${nextBlockVisible ? 'visible' : ''}`} onClick={() => setNextBlockVisible(!nextBlockVisible)}>
           {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} />)}
         </button>
-
       </div>
     </div>
   );
