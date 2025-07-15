@@ -59,6 +59,13 @@ function Game() {
   const [restartNextBlock, setRestartNextBlock] = useState<number>(0);
 
 
+  //Cache every possibility
+  const [shootFirstColumn, setShootFirstColumn] = useState<any>(null);
+  const [shootSecondColumn, setShootSecondColumn] = useState<any>(null);
+  const [shootThirdColumn, setShootThirdColumn] = useState<any>(null);
+  const [shootFourthColumn, setShootFourthColumn] = useState<any>(null);
+  const [shootFifthColumn, setShootFifthColumn] = useState<any>(null);
+
   useEffect(() => {
     // This is executed just once, after the first render.
     connectToPenginesServer();
@@ -151,6 +158,27 @@ function Game() {
     const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
     setMaxBlock(initialMax);
 
+    await cacheShoots(response['Grid'], response['Block1'], response['NumOfColumns']);
+  }
+
+  async function cacheShoots(grid: Grid, shootBlock: Number, numOfColumns: Number) {
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const queryS = (i: number) =>
+    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, Hint, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+
+    const [response1, response2, response3, response4, response5] = await Promise.all([
+    pengine!.query(queryS(1)),
+    pengine!.query(queryS(2)),
+    pengine!.query(queryS(3)),
+    pengine!.query(queryS(4)),
+    pengine!.query(queryS(5)),
+  ]);
+
+    setShootFirstColumn(response1);
+    setShootSecondColumn(response2);
+    setShootThirdColumn(response3);
+    setShootFourthColumn(response4);
+    setShootFifthColumn(response5);
   }
 
   /**

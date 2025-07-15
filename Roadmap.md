@@ -9,3 +9,13 @@
 - Always load hints using animation times and cache the shoot info so as to use said info when the user finally shoots.
 - Add a slight delay to the invasive pop ups so as not to have them instantly appear after they can be invoked.
 - Make the interface responsive.
+
+
+
+## In process
+
+# Shoot cache system
+
+Init shoots and caches all possible outcomes at start.
+The back end seems to work but I still have to check for correctness.
+The front end is yet to use the cached info.
