@@ -21,6 +21,7 @@ function Game() {
   const [pengine, setPengine] = useState<any>(null);
   const [grid, setGrid] = useState<Grid | null>(null);
   const [numOfColumns, setNumOfColumns] = useState<number | null>(null);
+  const [screenWidth, setScreenWidth] = useState<number>(window.innerWidth);
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [waiting, setWaiting] = useState<boolean>(false);
@@ -33,8 +34,10 @@ function Game() {
   // - fade: Controla la animación de desvanecimiento al final
   // - show: Controla la visibilidad inicial de la notificación
   const [comboNotification, setComboNotification] = useState<string | null>(null);
-  const [fade, setFade] = useState<boolean>(false);
-  const [show, setShow] = useState<boolean>(false);
+  const [fadeShowComboNotification, setFadeShowComboNotification] = useState<boolean>(false);
+  const [fadeNewBlockAddedNotification, setFadeNewBlockAddedNotification] = useState<boolean>(false);
+  const [showComboNotification, setShowComboNotification] = useState<boolean>(false);
+  const [showNewBlockAddedNotification, setShowNewBlockAddedNotification] = useState<boolean>(false);
   const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
   // Estado que indica si los hints están activados o no.
   // - Cuando el usuario presiona el botón "Hint Jugada", este estado se invierte (true ↔ false).
@@ -71,19 +74,19 @@ function Game() {
     if (!comboNotification) return;
 
     // Muestro la notificación inmediatamente
-    setShow(true);
-    setFade(false);
+    setShowComboNotification(true);
+    setFadeShowComboNotification(false);
 
     // Programo el inicio del desvanecimiento después de 500ms
     const fadeTimeout = setTimeout(() => {
-      setFade(true); // Activar clase CSS para desvanecer
+      setFadeShowComboNotification(true);              // Activar clase CSS para desvanecer
     }, 500);
 
     // Programo la eliminación completa después de 1s
     const removeTimeout = setTimeout(() => {
-      setComboNotification(null);  // Limpiar el mensaje
-      setFade(false);         // Resetear estado de desvanecimiento
-      setShow(false);         // Ocultar completamente el elemento
+      setComboNotification(null); // Limpiar el mensaje
+      setFadeShowComboNotification(false);             // Resetear estado de desvanecimiento
+      setShowComboNotification(false);             // Ocultar completamente el elemento
     }, 1000);
 
     //cancelar timeouts si el componente finaliza
@@ -92,6 +95,36 @@ function Game() {
       clearTimeout(removeTimeout);
     };
   }, [comboNotification]); // Dependencia: solo se ejecuta cuando comboNotification cambia
+
+  // Efecto para manejar la animación de notificaciones
+  // Se activa cada vez que cambia el estado 'newBlockAdded'
+  useEffect(() => {
+    // Si no hay notificación, no hacer nada
+    const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && !comboNotification));
+    if (!shouldShow) return;
+
+    // Muestro la notificación inmediatamente
+    setShowNewBlockAddedNotification(true);
+    setFadeNewBlockAddedNotification(false);
+
+    // Programo el inicio del desvanecimiento después de 500ms
+    const fadeTimeout = setTimeout(() => {
+      setFadeNewBlockAddedNotification(true);              // Activar clase CSS para desvanecer
+    }, 1500);
+
+    // Programo la eliminación completa después de 1s
+    const removeTimeout = setTimeout(() => {
+      setNewBlockAdded(null);                          // Limpiar el mensaje
+      setFadeNewBlockAddedNotification(false);             // Resetear estado de desvanecimiento
+      setShowNewBlockAdded(false);                     // Ocultar completamente el elemento
+    }, 2000);
+
+    //cancelar timeouts si el componente finaliza
+    return () => {
+      clearTimeout(fadeTimeout);
+      clearTimeout(removeTimeout);
+    };
+  }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification]); // Dependencia: solo se ejecuta cuando comboNotification cambia
 
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create()); // Await until the server is initialized
@@ -105,11 +138,11 @@ function Game() {
     setNumOfColumns(response['NumOfColumns']);
     setNextBlock(response['Block2']);
 
-    //------- INICIALIZAR MAXIMO INICIAL --------
+    //----------- Initialize grid max ------------
     const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
     const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
     setMaxBlock(initialMax);
-    //--------------------------------------------
+
   }
 
   /**
@@ -161,10 +194,10 @@ function Game() {
       }
 
       // Paso fusionCount a la función de animación
-      //Ejecuto la animación de efectos y ESPERO que termine completamente
+      // Ejecuto la animación de efectos y ESPERO que termine completamente
       const finalGrid = await animateEffect(response['Effects'], fusionCount);
 
-      //------- EVALUAR NUEVO MAXIMO --------
+      //---------- Evaluate new max ------------
       const currentMax = Math.max(...(finalGrid.filter((v): v is number => v !== '-') ));
       const removedBlock = response['MaxRemovedBlock'];
       if (currentMax > maxBlock) {
@@ -190,7 +223,7 @@ function Game() {
         }
 
         if (currentMax >= 512) {
-          setNewMaxBlock(currentMax); 
+          setNewMaxBlock(currentMax);
         }
         
         if (!showRemovedBlock && removedBlock !== 0) {
@@ -351,26 +384,6 @@ function Game() {
           </div>
         </div>
       )}
-      {/*------- CARTEL BLOQUE AGREGADO -------*/}
-      {newBlockAdded !== null &&
-      (showNewBlockAdded || (newMaxBlock == null && !comboNotification)) && (
-        <div className="newBlockAddedOverlay">
-          <div className="newBlockAddedCard">
-            <h2>¡Bloque agregado!</h2>
-            <p>El bloque {newBlockAdded} fue agregado al rango de tiro.</p>
-            <div className='newBlockAddedBlockContainerDiv'>
-              {(<Block value={newBlockAdded!} position={[0, 0]} />)}
-            </div>
-            <button onClick={() => {
-              setNewBlockAdded(null);
-              setShowNewBlockAdded(false);
-              setShowRemovedBlock(true);
-              }}>
-              Aceptar
-            </button>
-          </div>
-        </div>
-      )}
       {/*------- CARTEL BLOQUE ELIMINADO -------*/}
       {minBlockDeleted !== null && showRemovedBlock && (
         <div className="removedBlockOverlay">
@@ -389,12 +402,26 @@ function Game() {
           </div>
         </div>
       )}
+      {/*------- CARTEL BLOQUE AGREGADO AL RANGO DE TIRO -------*/}
+      {newBlockAdded !== null &&
+      (showNewBlockAdded || (newMaxBlock == null && !comboNotification)) && (
+        <div className={`newBlockAddedOverlay`}>
+          <div className={`newBlockAddedCard ${showNewBlockAddedNotification ? 'show' : ''} ${fadeNewBlockAddedNotification ? 'fade-out' : ''}`}>
+            <h2>¡Bloque </h2>
+            <div className={`newBlockAddedBlockContainerDiv ${showNewBlockAddedNotification ? 'show' : ''} ${fadeNewBlockAddedNotification ? 'fade-out' : ''}`}>
+              {(<Block value={newBlockAdded!} position={[0, 0]} />)}
+            </div>
+            <h2> agregado al rango de tiro!</h2>
+          </div>
+        </div>
+      )}
+      
       {/*------- NOTIFICACIONES DE COMBOS -------*/}
       {comboNotification && (
         <div
           // - 'show' para aparición inicial
           // - 'fade-out' para desvanecimiento
-          className={`comboNotification ${show ? 'show' : ''} ${fade ? 'fade-out' : ''}`}
+          className={`comboNotification ${showComboNotification ? 'show' : ''} ${fadeShowComboNotification ? 'fade-out' : ''}`}
         >
           {comboNotification}
         </div>
@@ -410,6 +437,7 @@ function Game() {
         onLaneClick={handleLaneClick}
         hints={hints}
         shootBlock={shootBlock}
+        screenWidth={screenWidth}
       />
 
       <div className="footer">

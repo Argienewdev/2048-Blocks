@@ -23,7 +23,7 @@ body {
 }
 
 .score {
-  margin: 10px;
+  padding: 10px;
   font-size: 25px;
   color: white;
 }
@@ -350,60 +350,84 @@ body {
 }
 
 .newBlockAddedOverlay {
+  padding-top: 2%;
   position: absolute;
   top: 0;
   left: 0;
   width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.85);
+  height: max-content;
+  background-color: transparent;
   display: flex;
   justify-content: center;
-  align-items: center;
-  z-index: 10000; /* Con esto me aseguro de que no haya nada por encima y evito que se pueda interactuar con la grilla */
+  align-items: flex-start;
   pointer-events: all;
+  z-index: 10000;
 }
 
 .newBlockAddedCard {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   background-color: #1e1e1e;
   color: white;
-  padding: 30px 50px;
-  border-radius: 12px;
+  padding: 15px 25px;
+  border-radius: 6px;
   text-align: center;
   align-items: center;
-  box-shadow: 0 0 25px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.1);
   font-family: "Century Gothic", sans-serif;
-  animation: scaleIn 0.4s ease-out forwards;
+  opacity: 0;
+}
+
+.newBlockAddedCard.show {
+  animation: scaleIn 0.6s ease-out forwards;
+}
+
+.newBlockAddedCard.fade-out {
+  animation: scaleOut 0.4s ease-out forwards;
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleOut {
+  from {
+    transform: scale(1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(0.8);
+    opacity: 0;
+  }
 }
 
 .newBlockAddedCard h2 {
-  font-size: 36px;
-  margin: 10px;
+  font-size: 18px;
+  margin: 5px;
 }
 
 .newBlockAddedCard p {
-  font-size: 20px;
-  margin: 10px;
-}
-
-.newBlockAddedCard button {
-  padding: 10px 20px;
-  font-size: 18px;
-  border: none;
-  border-radius: 8px;
-  background-color: white;
-  color: black;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
+  font-size: 10px;
+  margin: 5px;
 }
 
 .newBlockAddedBlockContainerDiv {
   background-color: transparent;
-  border: 2px solid white;
-  border-radius: 10px;
-  padding: 5px;
-  margin: 10px;
-  height: 70px;
-  width:  70px;
+  border: 1px solid white;
+  border-radius: 5px;
+  padding: 2px;
+  margin: 2px;
+  height: 35px;
+  width:  35px;
 }

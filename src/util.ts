@@ -50,7 +50,7 @@ export function parseBigNumber(num: number): string {
     // Miles grandes (a partir de 16k)
     if (num >= 16_000) {
         // Redondea hacia abajo a la unidad de mil
-        return Math.floor(num / 1_000) + 'k';
+        return Math.floor(num / 1_000) + 'K';
     }
     // Para el resto, muestra el número tal cual
     return num.toString();

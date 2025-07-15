@@ -7,14 +7,18 @@ interface BoardProps {
     onLaneClick: (lane: number) => void;
     hints?: { col: number; combo: number; maxBlock?: number }[];
     shootBlock: number | null;
+    screenWidth: number;
 }
 
-function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock }: BoardProps) {
+function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock, screenWidth }: BoardProps) {
     const numOfRows = grid.length / numOfColumns;
+    const screenLaneWidth = screenWidth / 3;
+    const maxLaneWidth = 70;
+    const laneWidth = screenLaneWidth <= maxLaneWidth ? screenLaneWidth : maxLaneWidth;
 
     return (
         <div className="board">
-            <div className="blocks" style={{ gridTemplateColumns: `repeat(${numOfColumns}, 70px)`, gridTemplateRows: `repeat(${numOfRows}, 70px)` }}>
+            <div className="blocks" style={{ gridTemplateColumns: `repeat(${numOfColumns}, ${laneWidth}px)`, gridTemplateRows: `repeat(${numOfRows}, ${laneWidth}px)` }}>
 
                 {/* Renderizamos las zonas para los hints de cada columna */}
                 {Array.from({ length: numOfColumns }).map((_, i) => {

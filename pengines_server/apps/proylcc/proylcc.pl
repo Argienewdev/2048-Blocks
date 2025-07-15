@@ -8,39 +8,6 @@
 :- use_module(library(arithmetic)).
 
 :- dynamic gridSize/1.
-/*
-TESTING: PARA NO TENER QUE HACER SHOOT TODO EL TIEMPO
-TODO: BORRAR ANTES DE ENTREGAR
-gridSize(2).
-*/
-
-/*
-DUDAS RESPONDIDAS:
-	-En el caso de que una LANE este completamente ocupada, debemos contemplar
-	que el usuario dispare de nuevo? El juego lo permite si apuntas a la ranura 
-	entre los bloques. 
-	+ ASUMO QUE EL USUARIO NO VA A HACER TAL COSA
-
-	-Se puede modificar la consulta que hace game a proylcc para implementar el powerup que 
-	te permite ver el bloque proximo a disparar? 
-	+ SI, PERO NO ES NECESARIO
-
-	-Que tan especificos hay que ser cuando describimos los predicados que definimos?
-	+ SIRVE DEFINIR LOS COMENTARIOS, SOLO SI NO SON COSAS EVIDENTES.
-	+ HAY QUE HACER INFORME
-
-	-Hay que implementar el "game over"? 
-	+ OPCIONAL
-
-	-Explica mejor el booster hint
-	+ POR COLUMNA, CUAL SERIA EL BLOQUE MAXIMO CONSEGUIDO Y EL COMBO. GRIS ESCRITO AL PIE O AL TECHO DE LA COLUMNA
-	  COMBO A PARTIR DE X3? A ELEGIR Y ESPECIFICAR. EL COMBO ES CUANTAS FUSIONES SE LOGRARON.
-
-	DUDAS PENDIENTES:
-	-Se permite hacer un predicado sin acumuladores que llame a una version de si mismo con
-	acumuladores? (En mi caso, los llamo aux) Se pueden llamar igual? (PROLOG lo permite)
-*/
-
 %-------------------------------------------------------------------------------------------
 
 /*
@@ -70,7 +37,7 @@ replace_at_index([H | T], Index, Elem, [H | R]) :-
 
 %-------------------------------------------------------------------------------------------
 
-es_guion('-').
+score('-').
 
 %-------------------------------------------------------------------------------------------
 
@@ -81,10 +48,10 @@ Si la grilla estaba vacia, el maximo sera 0
 */
 
 max_grid(Grid, 0):- 
-	exclude(es_guion, Grid, []), !.
+	exclude(score, Grid, []), !.
 
 max_grid(Grid, Max):- 
-	exclude(es_guion, Grid, Numeros), 
+	exclude(score, Grid, Numeros), 
 	max_list(Numeros, Max).
 
 %-------------------------------------------------------------------------------------------
@@ -96,7 +63,7 @@ Como nunca se llama con la grilla vacia, no se verifica el caso
 */
 
 min_actual(Grid, Min):- 
-	exclude(es_guion, Grid, Numeros), 
+	exclude(score, Grid, Numeros), 
 	min_list(Numeros, Min).
 
 %-------------------------------------------------------------------------------------------
@@ -236,14 +203,14 @@ randomBlock(Grid, Block):-
 
 booster_hint(Block, Grid, NumCols, Hints) :-
     findall(
-	hint(Col, Combo, MaxBlock),        % por cada columna, armo un un par hint(Col, Combo, MaxBlock)
+	hint(Col, Combo, MaxBlock),							% por cada columna, armo un un par hint(Col, Combo, MaxBlock)
 		(
-		between(1, NumCols, Col),                 % asigno los indices de las columnas
-		shoot(Block, Col, Grid, NumCols, Effects, _),% simulo el shoot (la jugada) en esa columna
-		count_combo(Effects, Combo),              % cuento cuantas fusiones se produjeron
-		max_newblock_from_effects(Effects, MaxBlock)			  % encuentro el valor maximo producto de la fusion
+		between(1, NumCols, Col),						% asigno los indices de las columnas
+		shoot(Block, Col, Grid, NumCols, Effects, _),	% simulo el shoot (la jugada) en esa columna
+		count_combo(Effects, Combo),					% cuento cuantas fusiones se produjeron
+		max_newblock_from_effects(Effects, MaxBlock)	% encuentro el valor maximo producto de la fusion
 		),
-        Hints                                          % reunimos todos los hints en una lista
+        Hints											% reunimos todos los hints en una lista
 		).
 
 %-------------------------------------------------------------------------------------------
@@ -255,8 +222,8 @@ booster_hint(Block, Grid, NumCols, Hints) :-
 % Ese número se devuelve como Count.
 
 count_combo(Effects, Count) :-
-    include(has_newblock, Effects, FusionEffects), % me quedo solo con los que tienen fusiones
-    length(FusionEffects, Count).                  % contamos cuántos son
+    include(has_newblock, Effects, FusionEffects),	% me quedo solo con los que tienen fusiones
+    length(FusionEffects, Count).					% contamos cuántos son
 
 %-------------------------------------------------------------------------------------------
 
