@@ -24,6 +24,7 @@ function Game() {
   const [screenWidth, setScreenWidth] = useState<number>(window.innerWidth);
   const [score, setScore] = useState<number>(0);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
+  const [shootAnimationKey, setShootAnimationKey] = useState(0);
   const [waiting, setWaiting] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false);
@@ -45,15 +46,18 @@ function Game() {
   // - Si está desactivado, los hints se ocultan y no se vuelven a calcular.
   const [hintsEnabled, setHintsEnabled] = useState<boolean>(false);
   const [nextBlockVisible, setNextBlockVisible] = useState<boolean>(false);
-  // Estado que almacena el próximo bloque a utilizar si el modo está activado
-  const [nextBlock, setNextBlock] = useState<number>(0);
-
-  //------- NUEVOS ESTADOS AGREGADOS --------
+  const [nextBlock, setNextBlock] = useState<number>(0);   // Estado que almacena el próximo bloque a utilizar si el modo está activado
   const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
   const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
   const [newBlockAdded, setNewBlockAdded] = useState<number | null>(null); // Cartel de nuevo bloque
   const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
-  //-----------------------------------------
+
+  //Restart states for a quick reset
+  const [restartGrid, setRestartGrid] = useState<Grid | null>(null);
+  const [restartNumOfColumns, setRestartNumOfColumns] = useState<number | null>(null);
+  const [restartShootBlock, setRestartShootBlock] = useState<number | null>(null);
+  const [restartNextBlock, setRestartNextBlock] = useState<number>(0);
+
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -88,44 +92,47 @@ function Game() {
       setFadeShowComboNotification(false);             // Resetear estado de desvanecimiento
       setShowComboNotification(false);             // Ocultar completamente el elemento
     }, 1000);
-
+    
     //cancelar timeouts si el componente finaliza
     return () => {
       clearTimeout(fadeTimeout);
       clearTimeout(removeTimeout);
     };
   }, [comboNotification]); // Dependencia: solo se ejecuta cuando comboNotification cambia
-
+  
+  //----------------------------------------------------------------------------------------------
   // Efecto para manejar la animación de notificaciones
   // Se activa cada vez que cambia el estado 'newBlockAdded'
   useEffect(() => {
     // Si no hay notificación, no hacer nada
     const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && !comboNotification));
     if (!shouldShow) return;
-
+    
     // Muestro la notificación inmediatamente
     setShowNewBlockAddedNotification(true);
     setFadeNewBlockAddedNotification(false);
-
+    
     // Programo el inicio del desvanecimiento después de 500ms
     const fadeTimeout = setTimeout(() => {
       setFadeNewBlockAddedNotification(true);              // Activar clase CSS para desvanecer
     }, 1500);
-
+    
     // Programo la eliminación completa después de 1s
     const removeTimeout = setTimeout(() => {
       setNewBlockAdded(null);                          // Limpiar el mensaje
       setFadeNewBlockAddedNotification(false);             // Resetear estado de desvanecimiento
       setShowNewBlockAdded(false);                     // Ocultar completamente el elemento
     }, 2000);
-
+    
     //cancelar timeouts si el componente finaliza
     return () => {
       clearTimeout(fadeTimeout);
       clearTimeout(removeTimeout);
     };
-  }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification]); // Dependencia: solo se ejecuta cuando comboNotification cambia
-
+  }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification]);
+  
+  //----------------------------------------------------------------------------------------------
+  
   async function connectToPenginesServer() {
     setPengine(await PengineClient.create()); // Await until the server is initialized
   }
@@ -135,6 +142,7 @@ function Game() {
     const response = await pengine!.query(queryS);
     setGrid(response['Grid']);
     setShootBlock(response['Block1']);
+    setShootAnimationKey(k => k + 1);
     setNumOfColumns(response['NumOfColumns']);
     setNextBlock(response['Block2']);
 
@@ -183,6 +191,7 @@ function Game() {
         const newRandomBlock = newRandomBlockResponse['Block'];
         if(newRandomBlockResponse){
           setShootBlock(newRandomBlock)
+          setShootAnimationKey(k => k + 1);
           setNextBlock(newBlockValue);
           setWaiting(false);
         }else{
@@ -190,6 +199,7 @@ function Game() {
         }
       }else{
         setShootBlock(nextBlock);
+        setShootAnimationKey(k => k + 1);
         setNextBlock(newBlockValue);
       }
 
@@ -273,6 +283,7 @@ function Game() {
       setWaiting(false);
       if (isGridFull(effectGrid)) {
         setGameOver(true);
+        prepareRestart();
       }
 
       return effectGrid; 
@@ -341,13 +352,33 @@ function Game() {
     return !grid.includes("-");
   }
 
+  async function prepareRestart(){
+    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid, Block2)';
+    const response = await pengine!.query(queryS);
+    const nextBlock = response['Block2'];
+    
+    setRestartGrid(response['Grid']);
+    setRestartShootBlock(response['Block1']);
+    setRestartNumOfColumns(response['NumOfColumns']);
+    setRestartNextBlock(response['Block2']);
+    
+    const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
+    const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
+    const maxBlock = initialMax;
+    setMaxBlock(initialMax);
+  }
+  
   async function restartGame() {
     setGameOver(false);
     setScore(0);
     setHints([]);
     setHintsEnabled(false);
     setShowRemovedBlock(false);
-    await initGame();
+    setGrid(restartGrid);
+    setShootBlock(restartShootBlock);
+    setShootAnimationKey(k => k + 1);
+    setNumOfColumns(restartNumOfColumns);
+    setNextBlock(restartNextBlock);
   }
 
   if (grid === null) {
@@ -444,12 +475,16 @@ function Game() {
         <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={handleHint}>
           Hint Jugada
         </button>
-        <div className="blockShoot">
-          <Block value={shootBlock!} position={[0, 0]} />
+        <div className= "blockShootContainerDiv">
+          <div key={shootAnimationKey} className="blockShoot fade-in">
+            <Block value={shootBlock!} position={[0, 0]} />
+          </div>
         </div>
-        <button className={`boosterBloqueSiguiente ${nextBlockVisible ? 'visible' : ''}`} onClick={() => setNextBlockVisible(!nextBlockVisible)}>
-          {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} />)}
-        </button>
+        <div className= "nextBlockContainerDiv">
+          <button className={`boosterBloqueSiguiente ${nextBlockVisible ? 'visible' : ''}`} onClick={() => setNextBlockVisible(!nextBlockVisible)}>
+            {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} />)}
+          </button>
+        </div>
       </div>
     </div>
   );

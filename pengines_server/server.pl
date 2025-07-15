@@ -28,7 +28,12 @@ user:file_search_path(apps, app(apps)).
 http:location(apps, root(apps), []).
 
 :- http_handler(apps(.), serve_files_in_directory(apps), [prefix]).
-:- http_handler(root(.), serve_files_in_directory(www), [prefix]).
+%:- http_handler(root(.), serve_files_in_directory(www), [prefix]).
+
+%:- http_handler(root(pengine/.), handle_pengine_preflight, [method(options), prefix, priority(100)]).
+
+%handle_pengine_preflight(Request) :-
+%    cors_enable(Request, [max_age(86400)]).
 
 :- http_handler(root(tutorial), http_reply_file('www/tutorial.html', []), []).
 :- http_handler(root(admin/'server.html'),

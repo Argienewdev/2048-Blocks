@@ -82,17 +82,45 @@ body {
   padding: 5px;
 }
 
+.blockShootContainerDiv {
+  width: max-content;
+  height: max-content;
+  display: flex;
+  border-radius: 10px;
+  background-color: transparent;
+  border: 2px solid white;
+  padding: 5px;
+}
+
 .blockShoot {
   width: 70px;
   height: 70px;
   display: flex;
   border-radius: 10px;
-  border: 2px solid white;
-  padding: 5px;
+}
+
+.blockShoot.fade-in {
+  animation: appearIn 0.2s ease-out forwards;
+}
+
+@keyframes appearIn {
+  0% {
+    transform: scale(0.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.nextBlockContainerDiv {
+  margin-left: 30px;
+  width: max-content;
+  height: max-content;
+  display: flex;
+  background-color: transparent;
 }
 
 .boosterBloqueSiguiente{
-  margin-left: 30px;
   height: 70px;
   width:  70px;
   border-radius: 10px;

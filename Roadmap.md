@@ -8,3 +8,4 @@
 - Add a "singularity" effect to the fired block so it looks like it pops out and the new block pops in.
 - Always load hints using animation times and cache the shoot info so as to use said info when the user finally shoots.
 - Add a slight delay to the invasive pop ups so as not to have them instantly appear after they can be invoked.
+- Make the interface responsive.
