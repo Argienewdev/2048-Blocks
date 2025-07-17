@@ -12,10 +12,17 @@
 
 
 
-## In process
+# In process
 
-# Shoot cache system
+### Shoot cache system
 
 Init shoots and caches all possible outcomes at start.
 The back end seems to work but I still have to check for correctness.
 The front end is yet to use the cached info.
+
+### Fix combo notification speed
+
+Combo notification fade in animation is looking weird
+
+
+# Know bugs

@@ -1,6 +1,6 @@
 :- module(proylcc, 
 	[  
-		randomBlock/2,
+		randomBlock/5,
 		shoot/6,
 		booster_hint/4
 	]).
@@ -186,10 +186,10 @@ basandose en grilla o formula si el MaxAct>=16000.
 por ultimo crea una lista de potencias de dos que esten dentro del rango y elige uno aleatorio.
 */
 
-randomBlock(Grid, Block):-
+randomBlock(Grid, Block, MinRange, MaxRange, MaxAct):-
 	max_grid(Grid, MaxAct), 
-	min_max_grid_values_permited(MaxAct, Min, Max),
-	findall(X, (between(Min, Max, X), es_potencia_de_dos(X)), Potencias), 
+	min_max_grid_values_permited(MaxAct, MinRange, MaxRange),
+	findall(X, (between(MinRange, MaxRange, X), es_potencia_de_dos(X)), Potencias), 
 	random_member(Block, Potencias).
 
 %-------------------------------------------------------------------------------------------
@@ -203,7 +203,7 @@ tener toda la informacion necesaria a disposicion
 
 shootCache(Block, Grid, NumCols, Lane, Hint, Effects, MaxRemovedBlock) :-
     findall(
-	hint(Col, Combo, MaxBlock),											% por cada columna, armo un un par hint(Col, Combo, MaxBlock)
+	hint(Lane, Combo, MaxBlock),										% armo un un par hint(Col, Combo, MaxBlock)
 		(
 		shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock),	% simulo el shoot (la jugada) en esa columna
 		count_combo(Effects, Combo),									% cuento cuantas fusiones se produjeron

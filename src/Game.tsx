@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import PengineClient, { PrologTerm } from './PengineClient';
 import Board from './Board';
 import Block from './Block';
 import { delay } from './util';
+import { resolveTypeReferenceDirective } from 'typescript';
 
 export type Grid = (number | "-")[];
 interface EffectTerm extends PrologTerm {
@@ -17,40 +18,49 @@ interface NewBlockTerm extends PrologTerm {
 }
 
 function Game() {
-  // State
+  // Server related states
   const [pengine, setPengine] = useState<any>(null);
+  const [waiting, setWaiting] = useState<boolean>(false);
+
+  //Screen width
+  const [screenWidth, setScreenWidth] = useState<number>(window.innerWidth);
+
+  //Game related
   const [grid, setGrid] = useState<Grid | null>(null);
   const [numOfColumns, setNumOfColumns] = useState<number | null>(null);
-  const [screenWidth, setScreenWidth] = useState<number>(window.innerWidth);
   const [score, setScore] = useState<number>(0);
-  const [shootBlock, setShootBlock] = useState<number | null>(null);
-  const [shootAnimationKey, setShootAnimationKey] = useState(0);
-  const [waiting, setWaiting] = useState<boolean>(false);
   const [gameOver, setGameOver] = useState<boolean>(false);
-  const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false);
-  const [showNewBlockAdded, setShowNewBlockAdded] = useState<boolean>(false);
+  const [shootBlock, setShootBlock] = useState<number | null>(null);
+  const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
+  const [maxRange, setMaxRange] = useState<number | null>(null);
+  const [minRange, setMinRange] = useState<number | null>(null);
+  const [shootAnimationKey, setShootAnimationKey] = useState(0);
 
-  // Estados para el sistema de notificaciones de combos
-  // - comboNotification: Almacena el mensaje a mostrar ("¡Combo x3!", etc.)
-  // - fade: Controla la animación de desvanecimiento al final
-  // - show: Controla la visibilidad inicial de la notificación
+  const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
+  const [showRemovedBlock, setShowRemovedBlock] = useState<boolean>(false);
+
+  
   const [comboNotification, setComboNotification] = useState<string | null>(null);
-  const [fadeShowComboNotification, setFadeShowComboNotification] = useState<boolean>(false);
-  const [fadeNewBlockAddedNotification, setFadeNewBlockAddedNotification] = useState<boolean>(false);
   const [showComboNotification, setShowComboNotification] = useState<boolean>(false);
+  const [fadeShowComboNotification, setFadeShowComboNotification] = useState<boolean>(false);
+  
+  const [newBlockAdded, setNewBlockAdded] = useState<number | null>(null); // Cartel de nuevo bloque
+  const [showNewBlockAdded, setShowNewBlockAdded] = useState<boolean>(false);
+  const [fadeNewBlockAddedNotification, setFadeNewBlockAddedNotification] = useState<boolean>(false);
   const [showNewBlockAddedNotification, setShowNewBlockAddedNotification] = useState<boolean>(false);
-  const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
+  
+  const [nextBlockVisible, setNextBlockVisible] = useState<boolean>(false);
+  const [nextBlock, setNextBlock] = useState<number>(0);   // Estado que almacena el próximo bloque a utilizar si el modo está activado
+  
+  const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
+  
   // Estado que indica si los hints están activados o no.
   // - Cuando el usuario presiona el botón "Hint Jugada", este estado se invierte (true ↔ false).
   // - Si está activado, se mostrarán los hints después de cada jugada.
   // - Si está desactivado, los hints se ocultan y no se vuelven a calcular.
+  const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
   const [hintsEnabled, setHintsEnabled] = useState<boolean>(false);
-  const [nextBlockVisible, setNextBlockVisible] = useState<boolean>(false);
-  const [nextBlock, setNextBlock] = useState<number>(0);   // Estado que almacena el próximo bloque a utilizar si el modo está activado
-  const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
-  const [newMaxBlock, setNewMaxBlock] = useState<number | null>(null); // Cartel de nuevo máximo
-  const [newBlockAdded, setNewBlockAdded] = useState<number | null>(null); // Cartel de nuevo bloque
-  const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
+
 
   //Restart states for a quick reset
   const [restartGrid, setRestartGrid] = useState<Grid | null>(null);
@@ -93,11 +103,11 @@ function Game() {
       setFadeShowComboNotification(true);              // Activar clase CSS para desvanecer
     }, 500);
 
-    // Programo la eliminación completa después de 1s
+    // Programo la eliminación completa
     const removeTimeout = setTimeout(() => {
-      setComboNotification(null); // Limpiar el mensaje
-      setFadeShowComboNotification(false);             // Resetear estado de desvanecimiento
-      setShowComboNotification(false);             // Ocultar completamente el elemento
+      setComboNotification(null);                     // Limpiar el mensaje
+      setFadeShowComboNotification(false);            // Resetear estado de desvanecimiento
+      setShowComboNotification(false);                // Ocultar completamente el elemento
     }, 1000);
     
     //cancelar timeouts si el componente finaliza
@@ -112,7 +122,7 @@ function Game() {
   // Se activa cada vez que cambia el estado 'newBlockAdded'
   useEffect(() => {
     // Si no hay notificación, no hacer nada
-    const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && !comboNotification));
+    const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && !comboNotification && showRemovedBlock == null));
     if (!shouldShow) return;
     
     // Muestro la notificación inmediatamente
@@ -136,7 +146,7 @@ function Game() {
       clearTimeout(fadeTimeout);
       clearTimeout(removeTimeout);
     };
-  }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification]);
+  }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification, showRemovedBlock]);
   
   //----------------------------------------------------------------------------------------------
   
@@ -145,18 +155,17 @@ function Game() {
   }
 
   async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid, Block2)';
+    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1, Min, Max, GridMax), randomBlock(Grid, Block2, _, _, _)';
     const response = await pengine!.query(queryS);
     setGrid(response['Grid']);
     setShootBlock(response['Block1']);
     setShootAnimationKey(k => k + 1);
     setNumOfColumns(response['NumOfColumns']);
     setNextBlock(response['Block2']);
+    setMinRange(response['Min']);
+    setMaxRange(response['Max']);
+    setMaxBlock(response['GridMax']);
 
-    //----------- Initialize grid max ------------
-    const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
-    const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
-    setMaxBlock(initialMax);
 
     await cacheShoots(response['Grid'], response['Block1'], response['NumOfColumns']);
   }
@@ -164,7 +173,7 @@ function Game() {
   async function cacheShoots(grid: Grid, shootBlock: Number, numOfColumns: Number) {
     const gridS = JSON.stringify(grid).replace(/"/g, '');
     const queryS = (i: number) =>
-    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, Hint, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, Hint, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
 
     const [response1, response2, response3, response4, response5] = await Promise.all([
     pengine!.query(queryS(1)),
@@ -189,12 +198,9 @@ function Game() {
     if (waiting || gameOver || newMaxBlock !== null || minBlockDeleted !== null || (minBlockDeleted !== null && !showRemovedBlock)) {
       return;
     }
-    /*
-    Build Prolog query, which will be something like: 
-    shoot(2, 2, [4,2,8,64,32,2,-,-,4,16,-,-,-,-,2,-,-,-,-,16,-,-,-,-,2,-,-,-,-,-,-,-,-,-,-], 5, Effects), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block).
-    */
+
     const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block)`;
+    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
     setWaiting(true);
     const response = await pengine.query(queryS);
 
@@ -211,9 +217,10 @@ function Game() {
       //un nuevo bloque aleatorio en base a la nueva grilla
       const newBlockValue = response['Block'];
       const newRandomBlockLastGrid = response['RGrid'];
-      if(response['MaxRemovedBlock'] >= nextBlock){
+      const maxRemovedBlock = response['MaxRemovedBlock'];
+      if(maxRemovedBlock >= nextBlock){
         const parsedFinalGrid = JSON.stringify(newRandomBlockLastGrid).replace(/"/g, '');
-        const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block)`;
+        const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block, _, _, _)`;
         setWaiting(true);
         const newRandomBlockResponse = await pengine.query(newRandomBlockQuery);
         const newRandomBlock = newRandomBlockResponse['Block'];
@@ -236,28 +243,14 @@ function Game() {
       const finalGrid = await animateEffect(response['Effects'], fusionCount);
 
       //---------- Evaluate new max ------------
-      const currentMax = Math.max(...(finalGrid.filter((v): v is number => v !== '-') ));
+      const currentMax = response['GridMax'];
       const removedBlock = response['MaxRemovedBlock'];
       if (currentMax > maxBlock) {
         setMaxBlock(currentMax);
         
-        let newBlockAdded = 0;
-        if (currentMax >= 16) newBlockAdded = 8;
-        if (currentMax >= 32) newBlockAdded = 16;
-        if (currentMax >= 64) newBlockAdded = 32;
-        if (currentMax >= 128) newBlockAdded = 64;
-        if (currentMax >= 1024) newBlockAdded = 128;
-        if (currentMax >= 2048) newBlockAdded = 256;
-        if (currentMax >= 4096) newBlockAdded = 512;
-        if (currentMax >= 16384) newBlockAdded = 1024;
-        if (currentMax > 16384) {
-          // A partir de 16k, se agrega el doble del maximo anterior
-          // Calculo cuántas veces se duplicó después de 16k
-          const duplicaciones = Math.floor(Math.log2(currentMax / 16384));
-          newBlockAdded = 1024 * Math.pow(2, duplicaciones);
-        }
-        if(newBlockAdded !== 0){
-          setNewBlockAdded(newBlockAdded);
+        const newMaxRange = response['MaxRange'];
+        if(newMaxRange > maxRange!){
+          setNewBlockAdded(newMaxRange);
         }
 
         if (currentMax >= 512) {
@@ -416,8 +409,8 @@ function Game() {
   return (
     <div className="game" style={{ position: 'relative' }}>
       {gameOver && (
-        <div className="game-over-overlay">
-          <div className="game-over-card">
+        <div className="fullscreenOverlay">
+          <div className="invasivePopUpCard">
             <h2>¡Game Over!</h2>
             <p>Puntaje: {score}</p>
             <button onClick={restartGame}>Reiniciar juego</button>
@@ -427,34 +420,36 @@ function Game() {
 
       {/*------- CARTEL NUEVO MAXIMO -------*/}
       {!comboNotification && newMaxBlock !== null && (
-        <div className="newMaxBlockOverlay">
-          <div className="newMaxBlockCard">
+        <div className="fullscreenOverlay fadeIn">
+          <div className="invasivePopUpCard">
             <h2>¡Nuevo máximo alcanzado!</h2>
             <p>Se alcanzó el bloque</p>
-            <div className='newMaxBlockBlockContainerDiv'>
+            <div className='invasivePopUpCardBlockContainerDiv'>
               {(<Block value={newMaxBlock!} position={[0, 0]} />)}
             </div>
             <button onClick={() => {
               setNewMaxBlock(null);
-              setShowNewBlockAdded(true);
+              setShowRemovedBlock(true);
             }}>
               Aceptar
             </button>
           </div>
         </div>
       )}
+      
       {/*------- CARTEL BLOQUE ELIMINADO -------*/}
       {minBlockDeleted !== null && showRemovedBlock && (
-        <div className="removedBlockOverlay">
-          <div className="removedBlockCard">
+        <div className="fullscreenOverlay">
+          <div className="invasivePopUpCard">
             <h2>¡Bloque eliminado!</h2>
             <p>El bloque {minBlockDeleted} fue eliminado de la grilla.</p>
-            <div className='removedBlockBlockContainerDiv'>
+            <div className='invasivePopUpCardBlockContainerDiv'>
               {(<Block value={minBlockDeleted!} position={[0, 0]} />)}
             </div>
             <button onClick={() => {
               setMinBlockDeleted(null);
-              setShowRemovedBlock(false)
+              setShowRemovedBlock(false);
+              setShowNewBlockAdded(true);
             }}>
               Aceptar
             </button>
