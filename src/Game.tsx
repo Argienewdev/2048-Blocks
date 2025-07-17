@@ -32,8 +32,8 @@ function Game() {
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [shootBlock, setShootBlock] = useState<number | null>(null);
   const [maxBlock, setMaxBlock] = useState<number>(0); // Valor máximo alcanzado
-  const [maxRange, setMaxRange] = useState<number | null>(null);
-  const [minRange, setMinRange] = useState<number | null>(null);
+  const [maxRange, setMaxRange] = useState<number>(0);
+  const [minRange, setMinRange] = useState<number>(0);
   const [shootAnimationKey, setShootAnimationKey] = useState(0);
 
   const [minBlockDeleted, setMinBlockDeleted] = useState<number | null>(null); // Cartel de bloque eliminado
@@ -67,7 +67,9 @@ function Game() {
   const [restartNumOfColumns, setRestartNumOfColumns] = useState<number | null>(null);
   const [restartShootBlock, setRestartShootBlock] = useState<number | null>(null);
   const [restartNextBlock, setRestartNextBlock] = useState<number>(0);
-
+  const [restartMaxBlock, setRestartMaxBlock] = useState<number>(0);
+  const [restartMaxRange, setRestartMaxRange] = useState<number>(0);
+  const [restartMinRange, setRestartMinRange] = useState<number>(0);
 
   //Cache every possibility
   const [shootFirstColumn, setShootFirstColumn] = useState<any>(null);
@@ -374,7 +376,7 @@ function Game() {
   }
 
   async function prepareRestart(){
-    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1), randomBlock(Grid, Block2)';
+    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1, MinRange, MaxRange, GridMax), randomBlock(Grid, Block2, _, _, _)';
     const response = await pengine!.query(queryS);
     const nextBlock = response['Block2'];
     
@@ -382,6 +384,9 @@ function Game() {
     setRestartShootBlock(response['Block1']);
     setRestartNumOfColumns(response['NumOfColumns']);
     setRestartNextBlock(response['Block2']);
+    setRestartMaxBlock(response['GridMax']);
+    setRestartMaxRange(response['MaxRange']);
+    setRestartMinRange(response['MinRange']);
     
     const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
     const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
@@ -400,6 +405,9 @@ function Game() {
     setShootAnimationKey(k => k + 1);
     setNumOfColumns(restartNumOfColumns);
     setNextBlock(restartNextBlock);
+    setMaxBlock(restartMaxBlock);
+    setMaxRange(restartMaxRange);
+    setMinRange(restartMinRange);
   }
 
   if (grid === null) {
@@ -425,7 +433,7 @@ function Game() {
             <h2>¡Nuevo máximo alcanzado!</h2>
             <p>Se alcanzó el bloque</p>
             <div className='invasivePopUpCardBlockContainerDiv'>
-              {(<Block value={newMaxBlock!} position={[0, 0]} />)}
+              {(<Block value={newMaxBlock!} position={[0, 0]} nonInvasivePopUp={false} />)}
             </div>
             <button onClick={() => {
               setNewMaxBlock(null);
@@ -444,7 +452,7 @@ function Game() {
             <h2>¡Bloque eliminado!</h2>
             <p>El bloque {minBlockDeleted} fue eliminado de la grilla.</p>
             <div className='invasivePopUpCardBlockContainerDiv'>
-              {(<Block value={minBlockDeleted!} position={[0, 0]} />)}
+              {(<Block value={minBlockDeleted!} position={[0, 0]} nonInvasivePopUp={false} />)}
             </div>
             <button onClick={() => {
               setMinBlockDeleted(null);
@@ -459,11 +467,11 @@ function Game() {
       {/*------- CARTEL BLOQUE AGREGADO AL RANGO DE TIRO -------*/}
       {newBlockAdded !== null &&
       (showNewBlockAdded || (newMaxBlock == null && !comboNotification)) && (
-        <div className={`newBlockAddedOverlay`}>
+        <div className={`newBlockAddedTopDiv`}>
           <div className={`newBlockAddedCard ${showNewBlockAddedNotification ? 'show' : ''} ${fadeNewBlockAddedNotification ? 'fade-out' : ''}`}>
             <h2>¡Bloque </h2>
             <div className={`newBlockAddedBlockContainerDiv ${showNewBlockAddedNotification ? 'show' : ''} ${fadeNewBlockAddedNotification ? 'fade-out' : ''}`}>
-              {(<Block value={newBlockAdded!} position={[0, 0]} />)}
+              {(<Block value={newBlockAdded!} position={[0, 0]} nonInvasivePopUp={true} />)}
             </div>
             <h2> agregado al rango de tiro!</h2>
           </div>
@@ -500,12 +508,12 @@ function Game() {
         </button>
         <div className= "blockShootContainerDiv">
           <div key={shootAnimationKey} className="blockShoot fade-in">
-            <Block value={shootBlock!} position={[0, 0]} />
+            <Block value={shootBlock!} position={[0, 0]} nonInvasivePopUp={false}/>
           </div>
         </div>
         <div className= "nextBlockContainerDiv">
           <button className={`boosterBloqueSiguiente ${nextBlockVisible ? 'visible' : ''}`} onClick={() => setNextBlockVisible(!nextBlockVisible)}>
-            {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} />)}
+            {!nextBlockVisible ? '?' : (<Block value={nextBlock!} position={[0, 0]} nonInvasivePopUp={false}/>)}
           </button>
         </div>
       </div>

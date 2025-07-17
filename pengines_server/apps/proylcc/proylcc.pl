@@ -2,6 +2,7 @@
 	[  
 		randomBlock/5,
 		shoot/6,
+		shootCache/7,
 		booster_hint/4
 	]).
 :- use_module(library(lists)).

@@ -23,6 +23,7 @@ body {
 }
 
 .score {
+  user-select: none;
   padding: 10px;
   font-size: 25px;
   color: white;
@@ -51,12 +52,18 @@ body {
   font-family: Arial, Helvetica, sans-serif;
   height: 100%;
   width: 100%;
+  user-select: none;
+}
+
+.block.nonInvasivePopUp{
+  font-size: 15px;
 }
 
 .hints-container {
   position: relative;
   height: 40px; /* Altura fija para los hints */
   text-align: center;
+  user-select: none;
   color: white;
   font-size: 12px;
   opacity: 1;
@@ -128,6 +135,7 @@ body {
   padding: 5px; /* Espacio entre borde blanco y contenido */
   justify-content: center;
   align-items: center;
+  user-select: none;
   background-color: rgb(28 28 30);
   color: white;
   font-size: 24px;
@@ -152,6 +160,7 @@ body {
   padding: 3px; /* Espacio entre borde blanco y contenido */
   justify-content: center;
   align-items: center;
+  user-select: none;
   background-color: rgb(28 28 30);
   color: white;
   font-size: 15px;
@@ -243,6 +252,7 @@ body {
   font-size: 18px;
   border: none;
   border-radius: 8px;
+  user-select: none;
   background-color: white;
   color: black;
   cursor: pointer;
@@ -263,7 +273,7 @@ body {
   width:  60px;
 }
 
-.newBlockAddedOverlay {
+.newBlockAddedTopDiv {
   padding-top: 2%;
   position: absolute;
   top: 0;

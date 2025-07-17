@@ -54,6 +54,7 @@ function Board({ grid, numOfColumns, onLaneClick, hints = [], shootBlock, screen
                             value={num}
                             position={pos}
                             key={i}
+                            nonInvasivePopUp={false}
                         />
                     );
                 })}
