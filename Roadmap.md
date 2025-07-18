@@ -3,12 +3,7 @@
 
 ## Roadmap
 
-- Add a new type of notification:
-    - This notification must fade in on the header and fade out so as not to disturb the games' continuity.
-- Add a "singularity" effect to the fired block so it looks like it pops out and the new block pops in.
 - Always load hints using animation times and cache the shoot info so as to use said info when the user finally shoots.
-- Add a slight delay to the invasive pop ups so as not to have them instantly appear after they can be invoked.
-- Make the interface responsive.
 
 
 
@@ -20,4 +15,6 @@ Init shoots and caches all possible outcomes at start.
 The back end seems to work but I still have to check for correctness.
 The front end is yet to use the cached info.
 
-# Know bugs
+## Know bugs
+
+- Addind 2 new blocks to the shoot range in quick succession leads to the pop up block changing mid notification.

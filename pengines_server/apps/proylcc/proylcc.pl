@@ -202,16 +202,10 @@ La idea es que cada vez que se llame se pueda cachear en el front y permita
 tener toda la informacion necesaria a disposicion
 */
 
-shootCache(Block, Grid, NumCols, Lane, Hint, Effects, MaxRemovedBlock) :-
-    findall(
-	hint(Lane, Combo, MaxBlock),										% armo un un par hint(Col, Combo, MaxBlock)
-		(
-		shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock),	% simulo el shoot (la jugada) en esa columna
-		count_combo(Effects, Combo),									% cuento cuantas fusiones se produjeron
-		max_newblock_from_effects(Effects, MaxBlock)					% encuentro el valor maximo producto de la fusion
-		),
-        Hint															% reunimos todos los hints en una lista
-		).
+shootCache(Block, Grid, NumCols, Lane, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock) :-
+	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock),	% simulo el shoot (la jugada) en esa columna
+	count_combo(Effects, Combo),									% cuento cuantas fusiones se produjeron
+	max_newblock_from_effects(Effects, MaxBlock).					% encuentro el valor maximo producto de la fusion
 
 %-------------------------------------------------------------------------------------------
 %-------------------------------------------------------------------------------------------

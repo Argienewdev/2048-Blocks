@@ -1,9 +1,10 @@
-import { useEffect, useState, useTransition } from 'react';
+import { cache, useEffect, useState, useTransition } from 'react';
 import PengineClient, { PrologTerm } from './PengineClient';
 import Board from './Board';
 import Block from './Block';
 import { delay } from './util';
 import { resolveTypeReferenceDirective } from 'typescript';
+import { parse } from 'path';
 
 export type Grid = (number | "-")[];
 interface EffectTerm extends PrologTerm {
@@ -58,7 +59,7 @@ function Game() {
   // - Cuando el usuario presiona el botón "Hint Jugada", este estado se invierte (true ↔ false).
   // - Si está activado, se mostrarán los hints después de cada jugada.
   // - Si está desactivado, los hints se ocultan y no se vuelven a calcular.
-  const [hints, setHints] = useState<{ col: number, combo: number }[]>([]);
+  const [hints, setHints] = useState<{ col: number, combo: number , maxBlock: number}[]>([]);
   const [hintsEnabled, setHintsEnabled] = useState<boolean>(false);
 
 
@@ -72,11 +73,7 @@ function Game() {
   const [restartMinRange, setRestartMinRange] = useState<number>(0);
 
   //Cache every possibility
-  const [shootFirstColumn, setShootFirstColumn] = useState<any>(null);
-  const [shootSecondColumn, setShootSecondColumn] = useState<any>(null);
-  const [shootThirdColumn, setShootThirdColumn] = useState<any>(null);
-  const [shootFourthColumn, setShootFourthColumn] = useState<any>(null);
-  const [shootFifthColumn, setShootFifthColumn] = useState<any>(null);
+  const [shootColumns, setShootColumns] = useState<any[]>([]);
 
   useEffect(() => {
     // This is executed just once, after the first render.
@@ -89,6 +86,173 @@ function Game() {
       initGame();
     }
   }, [pengine]);
+
+  async function connectToPenginesServer() {
+    setPengine(await PengineClient.create()); // Await until the server is initialized
+  }
+
+  async function initGame() {
+    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1, Min, Max, GridMax), randomBlock(Grid, Block2, _, _, _)';
+    const response = await pengine!.query(queryS);
+    setGrid(response['Grid']);
+    setShootBlock(response['Block1']);
+    setShootAnimationKey(k => k + 1);
+    setNumOfColumns(response['NumOfColumns']);
+    setNextBlock(response['Block2']);
+    setMinRange(response['Min']);
+    setMaxRange(response['Max']);
+    setMaxBlock(response['GridMax']);
+
+    await cacheShoots(response['Grid'], response['Block1'], response['NumOfColumns']);
+  }
+
+  async function cacheShoots(grid: Grid, shootBlock: number, numOfColumns: number) {
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const queryS = (i: number) =>
+    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
+
+    const queries = Array.from({ length: numOfColumns }, (_, i) =>
+      pengine!.query(queryS(i + 1))
+    );
+
+    const responses = await Promise.all(queries);
+    setShootColumns(responses);
+  }
+
+  /**
+   * Called when the player clicks on a lane.
+   */
+  async function handleLaneClick(lane: number) {
+
+    if (waiting || gameOver || newMaxBlock !== null || minBlockDeleted !== null || (minBlockDeleted !== null && !showRemovedBlock)) {
+      return;
+    }
+
+    const gridS = JSON.stringify(grid).replace(/"/g, '');
+    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
+    setWaiting(true);
+    const response = await pengine.query(queryS);
+
+    if (response) {
+      verifyNextBlockCorrectness(response);
+
+      const cachePromise = cacheShoots(response["RGrid"], nextBlock, numOfColumns!);
+      await animateEffect(response['Effects']);
+
+      evaluateNewMax(response);
+      evaluateCombo(response);
+      
+      await cachePromise;
+    } else { // Si no hay respuesta válida, se reactiva la interfaz
+      setWaiting(false);
+    }
+  }
+
+  async function verifyNextBlockCorrectness(response: any){
+    /*
+    Se contempla el caso en el que el siguiente bloque fue eliminado
+    en el tiro anterior a que este sea usado, por lo que se debe pedir
+    un nuevo bloque aleatorio en base a la nueva grilla
+    */
+    const newBlockValue = response['Block'];
+    const newRandomBlockLastGrid = response['RGrid'];
+    const maxRemovedBlock = response['MaxRemovedBlock'];
+    if(maxRemovedBlock >= nextBlock){
+      const parsedFinalGrid = JSON.stringify(newRandomBlockLastGrid).replace(/"/g, '');
+      const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block, _, _, _)`;
+      const newRandomBlockResponse = await pengine.query(newRandomBlockQuery);
+      const newRandomBlock = newRandomBlockResponse['Block'];
+      if(newRandomBlockResponse){
+        setShootBlock(newRandomBlock)
+        setShootAnimationKey(k => k + 1);
+        setNextBlock(newBlockValue);
+      }
+    }else{
+      setShootBlock(nextBlock);
+      setShootAnimationKey(k => k + 1);
+      setNextBlock(newBlockValue);
+    }
+  }
+
+  function evaluateNewMax(response: any){
+    const currentMax = response['GridMax'];
+      const removedBlock = response['MaxRemovedBlock'];
+      const newMaxRange = response['MaxRange'];
+
+      if (currentMax > maxBlock) {
+        setMaxBlock(currentMax);
+        
+        if(newMaxRange > maxRange!){
+          setNewBlockAdded(newMaxRange);
+        }
+
+        if (currentMax >= 512) {
+          setNewMaxBlock(currentMax);
+        }
+        
+        if (!showRemovedBlock && removedBlock !== 0) {
+          setMinBlockDeleted(removedBlock);
+        }
+      }
+  }
+
+  function evaluateCombo(response: any){
+    // Cuento cuántos efectos contienen información de fusión
+    // (cada efecto con args[1].length > 0 indica una fusión)
+    const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
+      eff.args[1].length > 0
+    ).length;
+    // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
+    if (fusionCount >= 3) {
+      setComboNotification(`¡Combo x${fusionCount}!`);
+    }
+  }
+
+  /**
+   * Displays each grid of the sequence as the current grid in 0.25sec intervals, 
+   * and considers the other effect information.
+   * @param effects The list of effects to be animated.
+   */
+  async function animateEffect(effects: EffectTerm[]): Promise<Grid> {
+    const effect = effects[0];
+    const [effectGrid, effectInfo] = effect.args;
+    setGrid(effectGrid);
+
+    effectInfo.forEach((effectInfoItem) => {
+      const { functor, args } = effectInfoItem;
+      switch (functor) {
+        case 'newBlock':
+          setScore(score => score + args[0]);
+          break;
+        default:
+          break;
+      }
+    });
+
+    const restRGrids = effects.slice(1);
+    if (restRGrids.length === 0) {
+      setWaiting(false);
+      if (isGridFull(effectGrid)) {
+        setGameOver(true);
+        prepareRestart();
+      }
+
+      return effectGrid; 
+    }
+
+    await delay(250);
+    return await animateEffect(restRGrids);
+  }
+
+  //----------------------------------------------------------------------------------------------
+  //Cuando se actualice la cache de shoots se actualizan las pistas por columna usando esta informacion
+  useEffect(() => {
+    if (shootColumns.length > 0) {
+      handleHintInternal();
+    }
+  }, [shootColumns]);
+
+  //----------------------------------------------------------------------------------------------
 
   // Efecto para manejar la animación de notificaciones
   // Se activa cada vez que cambia el estado 'comboNotification'
@@ -124,7 +288,7 @@ function Game() {
   // Se activa cada vez que cambia el estado 'newBlockAdded'
   useEffect(() => {
     // Si no hay notificación, no hacer nada
-    const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && !comboNotification && showRemovedBlock == null));
+    const shouldShow = newBlockAdded !== null && (showNewBlockAdded || (newMaxBlock == null && comboNotification == null && !showRemovedBlock));
     if (!shouldShow) return;
     
     // Muestro la notificación inmediatamente
@@ -151,229 +315,29 @@ function Game() {
   }, [newBlockAdded, showNewBlockAdded, newMaxBlock, comboNotification, showRemovedBlock]);
   
   //----------------------------------------------------------------------------------------------
-  
-  async function connectToPenginesServer() {
-    setPengine(await PengineClient.create()); // Await until the server is initialized
-  }
 
-  async function initGame() {
-    const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1, Min, Max, GridMax), randomBlock(Grid, Block2, _, _, _)';
-    const response = await pengine!.query(queryS);
-    setGrid(response['Grid']);
-    setShootBlock(response['Block1']);
-    setShootAnimationKey(k => k + 1);
-    setNumOfColumns(response['NumOfColumns']);
-    setNextBlock(response['Block2']);
-    setMinRange(response['Min']);
-    setMaxRange(response['Max']);
-    setMaxBlock(response['GridMax']);
+  async function handleHintInternal() {
+    const parsedHints = Array.from({ length: numOfColumns! }, (_, i) => {
+      const response = shootColumns[i];
 
-
-    await cacheShoots(response['Grid'], response['Block1'], response['NumOfColumns']);
-  }
-
-  async function cacheShoots(grid: Grid, shootBlock: Number, numOfColumns: Number) {
-    const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = (i: number) =>
-    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, Hint, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
-
-    const [response1, response2, response3, response4, response5] = await Promise.all([
-    pengine!.query(queryS(1)),
-    pengine!.query(queryS(2)),
-    pengine!.query(queryS(3)),
-    pengine!.query(queryS(4)),
-    pengine!.query(queryS(5)),
-  ]);
-
-    setShootFirstColumn(response1);
-    setShootSecondColumn(response2);
-    setShootThirdColumn(response3);
-    setShootFourthColumn(response4);
-    setShootFifthColumn(response5);
-  }
-
-  /**
-   * Called when the player clicks on a lane.
-   */
-  async function handleLaneClick(lane: number) {
-    // No effect if waiting. 
-    if (waiting || gameOver || newMaxBlock !== null || minBlockDeleted !== null || (minBlockDeleted !== null && !showRemovedBlock)) {
-      return;
-    }
-
-    const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
-    setWaiting(true);
-    const response = await pengine.query(queryS);
-
-    if (response) {
-      // Cuento cuántos efectos contienen información de fusión
-      // (cada efecto con args[1].length > 0 indica una fusión)
-      const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
-        eff.args[1].length > 0
-      ).length;
-      
-
-      //Se contempla el caso en el que el siguiente bloque fue eliminado
-      //en el tiro anterior a que este sea usado, por lo que se debe pedir
-      //un nuevo bloque aleatorio en base a la nueva grilla
-      const newBlockValue = response['Block'];
-      const newRandomBlockLastGrid = response['RGrid'];
-      const maxRemovedBlock = response['MaxRemovedBlock'];
-      if(maxRemovedBlock >= nextBlock){
-        const parsedFinalGrid = JSON.stringify(newRandomBlockLastGrid).replace(/"/g, '');
-        const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block, _, _, _)`;
-        setWaiting(true);
-        const newRandomBlockResponse = await pengine.query(newRandomBlockQuery);
-        const newRandomBlock = newRandomBlockResponse['Block'];
-        if(newRandomBlockResponse){
-          setShootBlock(newRandomBlock)
-          setShootAnimationKey(k => k + 1);
-          setNextBlock(newBlockValue);
-          setWaiting(false);
-        }else{
-          setWaiting(false);
-        }
-      }else{
-        setShootBlock(nextBlock);
-        setShootAnimationKey(k => k + 1);
-        setNextBlock(newBlockValue);
-      }
-
-      // Paso fusionCount a la función de animación
-      // Ejecuto la animación de efectos y ESPERO que termine completamente
-      const finalGrid = await animateEffect(response['Effects'], fusionCount);
-
-      //---------- Evaluate new max ------------
-      const currentMax = response['GridMax'];
-      const removedBlock = response['MaxRemovedBlock'];
-      if (currentMax > maxBlock) {
-        setMaxBlock(currentMax);
-        
-        const newMaxRange = response['MaxRange'];
-        if(newMaxRange > maxRange!){
-          setNewBlockAdded(newMaxRange);
-        }
-
-        if (currentMax >= 512) {
-          setNewMaxBlock(currentMax);
-        }
-        
-        if (!showRemovedBlock && removedBlock !== 0) {
-          setMinBlockDeleted(removedBlock);
-        }
-      }
-      // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
-      if (fusionCount >= 3) {
-        setComboNotification(`¡Combo x${fusionCount}!`);
-      }
-
-      if (hintsEnabled) {
-        // Solo se actualizan los hints automaticamente si el usuario activo el sistema de hints.
-        // Se llama a handleHintInternal pasando la grilla final y el nuevo bloque para calcular los nuevos combos, sino se hace esto, se actualiza con bloque nuevo y grilla vieja.
-        if (nextBlock!=null)
-          await handleHintInternal(nextBlock, finalGrid);
-      }
-
-    } else { // Si no hay respuesta válida, se reactiva la interfaz
-      setWaiting(false);
-    }
-  }
-
-  /**
-   * Displays each grid of the sequence as the current grid in 0.25sec intervals, 
-   * and considers the other effect information.
-   * @param effects The list of effects to be animated.
-   */
-  async function animateEffect(effects: EffectTerm[], fusionCount: number): Promise<Grid> {
-    const effect = effects[0];
-    const [effectGrid, effectInfo] = effect.args;
-    setGrid(effectGrid);
-
-    effectInfo.forEach((effectInfoItem) => {
-      const { functor, args } = effectInfoItem;
-      switch (functor) {
-        case 'newBlock':
-          setScore(score => score + args[0]);
-          break;
-        default:
-          break;
-      }
+      return {
+        col: response['Lane'],
+        combo: response['Combo'],
+        maxBlock: response['MaxBlock'],
+      };
     });
 
-    const restRGrids = effects.slice(1);
-    if (restRGrids.length === 0) {
-      setWaiting(false);
-      if (isGridFull(effectGrid)) {
-        setGameOver(true);
-        prepareRestart();
-      }
-
-      return effectGrid; 
-      //Se devuelve la última grilla luego de completar 
-      //todas las animaciones lo cual permite usarla en handleHintInternal 
-      //para calcular los combos correctos y para evaluar el nuevo maximo.
-    }
-
-    await delay(250);
-    return await animateEffect(restRGrids, fusionCount);
+    setHints(parsedHints);
   }
 
-  async function handleHintInternal(blockValue: number, currentGrid?: Grid, forzar = false) {
-    if (!hintsEnabled && !forzar) return; //si no esta habilitado y no se forzo 
-
-    // Si se paso una grilla explicitamente (desp de una jugada), se usa esa.
-    // De lo contrario, se usa la grilla actual almacenada en el estado.
-    const actualGrid = currentGrid || grid;
-
-    //Verifica que tanto la grilla como el numero de columnas estén definidos.
-    // Si falta alguno, no tiene sentido consultar a Prolog, así que se corta.(esto lo agregue porque me tiraba error)
-    if (!actualGrid || !numOfColumns) return;
-
-    //Serializa la grilla en formato compatible con Prolog (Lo saque del handleclick).
-    const gridS = JSON.stringify(actualGrid).replace(/"/g, '');
-    //Consulta a prolog booster_hint
-    const queryS = `booster_hint(${blockValue}, ${gridS}, ${numOfColumns}, Hints)`;
-
-    //Ejecuta la consulta en Prolog y espera la respuesta.
-    const response = await pengine.query(queryS);
-
-    //Si hay respuesta válida y contiene hints, se parsean.
-    if (response && response['Hints']) {
-      const parsedHints = response['Hints'].map((hint: any) => ({
-        col: hint.args[0], // COLUMNA
-        combo: hint.args[1], // CANTIDAD X DEL COMBO
-        maxBlock: hint.args[2] 
-      }));
-
-      // Si no hay ninguna jugada sugerida, se limpia el estado de hints si no hay jugadas sugeridas.
-      if (parsedHints.length > 0) {
-        setHints(parsedHints);
-      } else {
-        setHints([]);
-      }
-    } else {
-      //se limpia para que no queden sugerencias antiguas visibles
-      setHints([]);
-    }
-  }
-
-  async function handleHint() {
-    if (hintsEnabled) {
-      setHintsEnabled(false);
-      setHints([]);
-    } else {
-      setHintsEnabled(true);
-
-      if (shootBlock !== null) {
-        await handleHintInternal(shootBlock, undefined, true);
-      }
-    }
-  }
+  //----------------------------------------------------------------------------------------------
 
   function isGridFull(grid: Grid): boolean {
     return !grid.includes("-");
   }
+
+  //----------------------------------------------------------------------------------------------
+
 
   async function prepareRestart(){
     const queryS = 'init(Grid, NumOfColumns), randomBlock(Grid, Block1, MinRange, MaxRange, GridMax), randomBlock(Grid, Block2, _, _, _)';
@@ -394,6 +358,8 @@ function Game() {
     setMaxBlock(initialMax);
   }
   
+  //----------------------------------------------------------------------------------------------
+
   async function restartGame() {
     setGameOver(false);
     setScore(0);
@@ -409,6 +375,8 @@ function Game() {
     setMaxRange(restartMaxRange);
     setMinRange(restartMinRange);
   }
+
+  //----------------------------------------------------------------------------------------------
 
   if (grid === null) {
     return null;
@@ -500,10 +468,11 @@ function Game() {
         hints={hints}
         shootBlock={shootBlock}
         screenWidth={screenWidth}
+        hintsEnabled={hintsEnabled}
       />
 
       <div className="footer">
-        <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={handleHint}>
+        <button className={`boosterHintJugada ${hintsEnabled ? 'visible' : ''}`} onClick={() => setHintsEnabled(!hintsEnabled)}>
           Hint Jugada
         </button>
         <div className= "blockShootContainerDiv">
