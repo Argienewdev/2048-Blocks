@@ -201,25 +201,12 @@ tener toda la informacion necesaria a disposicion
 */
 
 shootCache(Block, Grid, NumCols, Lane, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock) :-
-	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo),		% simulo el shoot (la jugada) en esa columna
-	max_newblock_from_effects(Effects, MaxBlock).							% encuentro el valor maximo producto de la fusion
-
-%-------------------------------------------------------------------------------------------
-
-% max_newblock_from_effects(+Effects, -Max)
-%
-% Dada una lista de efectos 'Effects'
-% devuelve en 'Max' el valor más alto de todos los bloques generados por fusiones
-% Si no se generó ningún bloque, devuelve 0.
-
-max_newblock_from_effects(Effects, Max) :-
-    findall(V, (member(effect(_, Infos), Effects), member(newBlock(V), Infos)), Blocks),
-    ( Blocks = [] -> Max = 0 ; max_list(Blocks, Max) ).
+	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo, MaxBlock).
 
 %-------------------------------------------------------------------------------------------
 /*
-shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects, -MaxRemovedBlock)
-shoot en principio calcula la longitud de la grilla y la deja en assert para no volver a calcularla.
+shoot(+Block, +Column, +Grid, +NumOfColumns, -Effects, -MaxRemovedBlock, -Combo, -MaxBlockAfterFusion)
+shoot en principio calcula la longitud de ela grilla y la deja en assert para no volver a calcularla.
 Luego, este procede del siguiente modo:
 	block_insert: pone el bloque donde va luego de ser disparado, retorna efecto y a donde cayo
 	fusion_process: lleva a cabo toda la serie de fusiones correspondientes y retorna los efectos
@@ -230,33 +217,33 @@ Retorna:
 	El numero maximo eliminado de la grilla
 */
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
     gridSize(_), !,
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
     length(Grid, GridSize),
     assert(gridSize(GridSize)),
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
 
 /*
-fusion_process_aux(+Grid, +Col, +Indexes, -Effects)
+fusion_process(+Grid, +Col, +Indexes, -Effects, -MaxRemovedBlock, -Combo, -MaxBlockAfterFusion)
 Es un wrapper.
 */
 
-fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock, Combo) :-
-	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock, Combo).
+fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
+	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock, Combo, 0, MaxBlockAfterFusion).
 /*
 
 %-------------------------------------------------------------------------------------------
 
-fusion_process_aux(+Grid, +Col, +Indexes, -Effects, +RemovedBlockAcc -MaxRemovedBlock)
+fusion_process_aux(+Grid, +Col, +Indexes, -Effects, +RemovedBlockAcc -MaxRemovedBlock, -Combo, -AccMaxBlockAfterFusion, -MaxBlockAfterFusion)
 Este predicado se encarga de verificar si luego de las fusiones corresponde remover bloques en desuso.
 En caso afirmativo, se llama recursivamente a si misma para corroborar si se pueden lograr nuevas fusiones
 y revisa nuevamente si hay algun bloque para remover.
@@ -264,34 +251,39 @@ Luego, retorna los efectos pertinentes y el bloque mas grande eliminado.
 */
 
 
-fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock, Combo) :-
-	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, ComboA),
+fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock, Combo, MaxBlockAfterFusion, NewNewMaxBlockAfterFusion) :-
+	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, ComboA, NewMaxBlockAfterFusion),
+
+	(NewMaxBlockAfterFusion > MaxBlockAfterFusion ->
+	ToReturnMaxBlockAfterFusion is NewMaxBlockAfterFusion;
+	ToReturnMaxBlockAfterFusion is MaxBlockAfterFusion),
+
 	max_grid(Grid, CurrentMax),
 	max_grid(FusionGrid, NewMax),
 	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements, RemovedBlock) ->
 
 	append(FusionEffects, PostDeletesMergesEffects, NewEffects),
-	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock, ComboB),
+	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock, ComboB, NewMaxBlockAfterFusion, NewNewMaxBlockAfterFusion),
 	Combo is ComboA + ComboB,
 	append(NewEffects, NewNewEffects,Effects);
 
-	Combo = ComboA,
+	NewNewMaxBlockAfterFusion is ToReturnMaxBlockAfterFusion,
+	Combo is ComboA,
 	MaxRemovedBlock = RemovedBlockAcc,
 	Effects = FusionEffects).
 
 %-------------------------------------------------------------------------------------------
-
 /*
-fusion_admin_aux(+Grid, +Col, +Indexes, -Effects, -RGrid, -Combo)
+fusion_admin_aux(+Grid, +Col, +Indexes, -Effects, -RGrid, -Combo, -MaxBlockAfterFusion)
 Es un wrapper.
 */
 
-fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, Combo) :-
-	fusion_admin_aux(Grid, Col, Indexes, [], FusionEffects, FusionGrid, 0, Combo).
+fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, Combo, MaxBlockAfterFusion) :-
+	fusion_admin_aux(Grid, Col, Indexes, [], FusionEffects, FusionGrid, 0, Combo, 0, MaxBlockAfterFusion).
 
 %-------------------------------------------------------------------------------------------
 /*
-fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects, -RGrid, +ComboAcc, -Combo)
+fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects, -RGrid, +ComboAcc, -Combo, -AccMaxBlockAfterFusion, -MaxBlockAfterFusion)
 Fusion admin funcionara de la siguiente manera
 	fusion loop: se encarga de llevar a cabo todas las fusiones simultaneas y retorna el ultimo
 	efecto junto con todos los bloques nuevos que se crearon y todos los nuevos indices de bloques
@@ -307,17 +299,23 @@ Fusion admin funcionara de la siguiente manera
 	de bloques que se movieron a la lista de indices a revisar nuevamente y hago el llamado recursivo
 */
 
-fusion_admin_aux(Grid, _Col, [], Acc, Acc, Grid, ComboAcc, ComboAcc) :- !.
+fusion_admin_aux(Grid, _Col, [], Acc, Acc, Grid, ComboAcc, ComboAcc, MaxBlockAfterFusion, MaxBlockAfterFusion) :- !.
 
-fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid, ComboAcc, Combo) :-
-	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes),
+fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid, ComboAcc, Combo, MaxBlockAfterFusion, ToReturnMaxBlockAfterFusion) :-
+	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes, NewMaxBlockAfterFusion),
 
-	(length(NewFusionIndexes, NewFusionIndexesLength),
-	NewFusionIndexesLength > 0 ->
+	(NewMaxBlockAfterFusion > MaxBlockAfterFusion ->
+	NewNewMaxBlockAfterFusion is NewMaxBlockAfterFusion;
+	NewNewMaxBlockAfterFusion is MaxBlockAfterFusion
+	),
+
+	length(NewFusionIndexes, NewFusionIndexesLength),
+	(NewFusionIndexesLength > 0 ->
 	NewComboAcc is ComboAcc + 1;
 	NewComboAcc is ComboAcc),
 
 	get_columns_to_check_with_adyacent(NewFusionIndexes, Col, ColumnsToCheck),
+	
 	(block_fall(LastGrid, Col, ColumnsToCheck, GravityGrid, NewGravityIndexes) ->
 	
 	append(FinalFusionEffect, [effect(GravityGrid, [])], LoopEffect),
@@ -325,27 +323,27 @@ fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid, ComboAcc, Combo) :-
 	
 	append(NewGravityIndexes, NewFusionIndexes, NewIndexes),
 	
-	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo);
+	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo, NewNewMaxBlockAfterFusion, ToReturnMaxBlockAfterFusion);
 	
 	append(Acc, FinalFusionEffect, NewAcc),
 	
-	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo)), !.
+	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo, NewNewMaxBlockAfterFusion, ToReturnMaxBlockAfterFusion)), !.
 
 %-------------------------------------------------------------------------------------------
 
 /*
-fusion_loop(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, -NewIndexes)
+fusion_loop(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, -NewIndexes, -MaxBlockAfterFusion)
 fusion loop usa auxiliares para otorgar acumuladores
 */
 
-fusion_loop(Grid, Col, Indexes, [], LastGrid, NewIndexes) :-
-	fusion_loop_aux(Grid, Col, Indexes, effect(Grid, _), LastGrid, [], [], NewIndexes), !.
+fusion_loop(Grid, Col, Indexes, [], LastGrid, NewIndexes, MaxBlockAfterFusion) :-
+	fusion_loop_aux(Grid, Col, Indexes, effect(Grid, _), LastGrid, [], [], NewIndexes, 0, MaxBlockAfterFusion), !.
 
-fusion_loop(Grid, Col, Indexes, [FinalFusionEffect], LastGrid, NewIndexes) :-
-	fusion_loop_aux(Grid, Col, Indexes, FinalFusionEffect, LastGrid, [], [], NewIndexes).
+fusion_loop(Grid, Col, Indexes, [FinalFusionEffect], LastGrid, NewIndexes, MaxBlockAfterFusion) :-
+	fusion_loop_aux(Grid, Col, Indexes, FinalFusionEffect, LastGrid, [], [], NewIndexes, 0, MaxBlockAfterFusion).
 
 /*
-fusion_loop_aux(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, +NewBlocksAcc, +NewIndexesAcc, -NewIndexes)
+fusion_loop_aux(+Grid, +Col, +Indexes, -FinalFusionEffect, -LastGrid, +NewBlocksAcc, +NewIndexesAcc, -NewIndexes, -AccMaxBlockAfterFusion, -MaxBlockAfterFusion)
 fusion loop aux funciona de la siguiente manera:
 	Para cada indice a revisar, se lleva a cabo una fusion.
 	Si esta fusion es exitosa, se almacena el indice resultante y los nuevos bloques formados.
@@ -353,8 +351,7 @@ fusion loop aux funciona de la siguiente manera:
 
 	En caso de que la fusion falle, se desecha dicho indice y se sigue adelante con el resto.
 */
-
-fusion_loop_aux(Grid, _Col, [], effect(Grid, Acc), Grid, Acc, NewIndexesAcc, NewIndexesAcc) :- !.
+fusion_loop_aux(Grid, _Col, [], effect(Grid, Acc), Grid, Acc, NewIndexesAcc, NewIndexesAcc, MaxBlockAfterFusion, MaxBlockAfterFusion) :- !.
 
 /*
 En caso de que no haya fusion, da falso, entonces necesito que en ese
@@ -362,13 +359,16 @@ caso deseche el indice y siga, por eso se hace esta implicacion. Sino, deberia e
 al predicado fusion, lo que seria una perdida de tiempo porque ya fue evaluado.
 */
 
-fusion_loop_aux(Grid, Col, [X | Xs], FinalFusionEffect, LastGrid, Acc, NewIndexesAcc, NewIndexes) :-
-	(fusion(Grid, Col, X, FGrid, NewIndexesAcc, NewBlocksAfterFusion, NewIndex) ->
+fusion_loop_aux(Grid, Col, [X | Xs], FinalFusionEffect, LastGrid, Acc, NewIndexesAcc, NewIndexes, MaxBlockAfterFusion, NewNewMaxBlockAfterFusion) :-
+	(fusion(Grid, Col, X, FGrid, NewIndexesAcc, NewBlockAfterFusion, NewIndex) ->
+	(NewBlockAfterFusion > MaxBlockAfterFusion ->
+	NewMaxBlockAfterFusion is NewBlockAfterFusion;
+	NewMaxBlockAfterFusion is MaxBlockAfterFusion),
 	append(NewIndex, NewIndexesAcc, NextNewIndexesAcc),
-	append([NewBlocksAfterFusion], Acc, NewAcc),
-	fusion_loop_aux(FGrid, Col, Xs, FinalFusionEffect, LastGrid, NewAcc, NextNewIndexesAcc, NewIndexes);
+	append([newBlock(NewBlockAfterFusion)], Acc, NewAcc),
+	fusion_loop_aux(FGrid, Col, Xs, FinalFusionEffect, LastGrid, NewAcc, NextNewIndexesAcc, NewIndexes, NewMaxBlockAfterFusion, NewNewMaxBlockAfterFusion);
 
-	fusion_loop_aux(Grid, Col, Xs, FinalFusionEffect, LastGrid, Acc, NewIndexesAcc, NewIndexes)).
+	fusion_loop_aux(Grid, Col, Xs, FinalFusionEffect, LastGrid, Acc, NewIndexesAcc, NewIndexes, MaxBlockAfterFusion, NewNewMaxBlockAfterFusion)).
 
 %-------------------------------------------------------------------------------------------
 
@@ -931,7 +931,7 @@ ciclo de fusiones, por lo que no tienen que ser tomados en cuenta como validos p
 */
 
 %Caso 1: Hay una unica fusion posible, arriba
-fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [BlockMatchIndex]) :-
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, NewBlockValue, [BlockMatchIndex]) :-
 	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
 	best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches == BestMatchMerges,
@@ -947,7 +947,7 @@ fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [BlockM
 	remove_merged(RGrid, BlocksToRemoveIndexes, FGrid).
 
 %Caso 2: Caso merge sobre INDEX
-fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [Index]) :-
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, NewBlockValue, [Index]) :-
 	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
 	best_match(Grid, Col, MIndexes, InvalidIndexes, _BestMatchIndex, BestMatchMerges, _BestMatchMergesIndexes),
 	Matches >= BestMatchMerges, !,
@@ -957,7 +957,7 @@ fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [Index]
 	remove_merged(RGrid, MIndexes, FGrid).
 
 %Caso 3: Caso merge sobre la mejor opcion
-fusion(Grid, Col, Index, FGrid, InvalidIndexes, newBlock(NewBlockValue), [BestMatchIndexOnGrid]) :-
+fusion(Grid, Col, Index, FGrid, InvalidIndexes, NewBlockValue, [BestMatchIndexOnGrid]) :-
 	check_position(Grid, Col, Index, InvalidIndexes, Matches, MIndexes),
 	best_match(Grid, Col, MIndexes, InvalidIndexes, BestMatchIndexOnMIndexes, BestMatchMerges, BestMatchMergesIndexes),
 	Matches < BestMatchMerges, !,
