@@ -1,7 +1,7 @@
 :- module(proylcc, 
 	[  
 		randomBlock/5,
-		shootCache/7
+		shootCache/4
 	]).
 :- use_module(library(lists)).
 :- use_module(library(arithmetic)).
@@ -200,8 +200,16 @@ La idea es que cada vez que se llame se pueda cachear en el front y permita
 tener toda la informacion necesaria a disposicion
 */
 
-shootCache(Block, Grid, NumCols, Lane, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock) :-
-	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo, MaxBlock).
+shootCache(Block, Grid, NumCols, Cache) :-
+	findall(
+		cache(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo, MaxBlock, RGrid, RandomBlock, MinRange, MaxRange, GridMaxBlock),
+		(
+		between(1, NumCols, Lane),
+		shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo, MaxBlock, RGrid),
+		randomBlock(RGrid, RandomBlock, MinRange, MaxRange, GridMaxBlock)
+		),
+		Cache).
+	
 
 %-------------------------------------------------------------------------------------------
 /*
@@ -217,17 +225,17 @@ Retorna:
 	El numero maximo eliminado de la grilla
 */
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion, RGrid) :-
     gridSize(_), !,
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion, RGrid),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion, RGrid) :-
     length(Grid, GridSize),
     assert(gridSize(GridSize)),
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo, MaxBlockAfterFusion, RGrid),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
@@ -237,8 +245,8 @@ fusion_process(+Grid, +Col, +Indexes, -Effects, -MaxRemovedBlock, -Combo, -MaxBl
 Es un wrapper.
 */
 
-fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion) :-
-	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock, Combo, 0, MaxBlockAfterFusion).
+fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock, Combo, MaxBlockAfterFusion, RGrid) :-
+	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock, Combo, 0, MaxBlockAfterFusion, RGrid).
 /*
 
 %-------------------------------------------------------------------------------------------
@@ -251,7 +259,7 @@ Luego, retorna los efectos pertinentes y el bloque mas grande eliminado.
 */
 
 
-fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock, Combo, MaxBlockAfterFusionAcc, MaxBlockAfterFusion) :-
+fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock, Combo, MaxBlockAfterFusionAcc, MaxBlockAfterFusion, RGrid) :-
 	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, ComboA, NewMaxBlockAfterFusion),
 
 	(NewMaxBlockAfterFusion > MaxBlockAfterFusionAcc ->
@@ -263,13 +271,14 @@ fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock
 	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements, RemovedBlock) ->
 
 	append(FusionEffects, PostDeletesMergesEffects, NewEffects),
-	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock, ComboB, NewMaxBlockAfterFusionAcc, MaxBlockAfterFusion),
+	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock, ComboB, NewMaxBlockAfterFusionAcc, MaxBlockAfterFusion, RGrid),
 	Combo is ComboA + ComboB,
 	append(NewEffects, NewNewEffects,Effects);
 
-	MaxBlockAfterFusion is NewMaxBlockAfterFusionAcc,
-	Combo is ComboA,
+	MaxBlockAfterFusion = NewMaxBlockAfterFusionAcc,
+	Combo = ComboA,
 	MaxRemovedBlock = RemovedBlockAcc,
+	RGrid = FusionGrid,
 	Effects = FusionEffects).
 
 %-------------------------------------------------------------------------------------------

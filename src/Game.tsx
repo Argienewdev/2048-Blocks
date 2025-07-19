@@ -108,15 +108,28 @@ function Game() {
 
   async function cacheShoots(grid: Grid, shootBlock: number, numOfColumns: number) {
     const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = (i: number) =>
-    `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, ${i}, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
+    const query = `shootCache(${shootBlock}, ${gridS}, ${numOfColumns}, Cache)`;
 
-    const queries = Array.from({ length: numOfColumns }, (_, i) =>
-      pengine!.query(queryS(i + 1))
-    );
+    const response = await pengine!.query(query);
 
-    const responses = await Promise.all(queries);
-    setShootColumns(responses);
+    if (response && response['Cache']) {
+      const parsedCache = response['Cache'].map((cache: any) => ({
+        block: cache.args[0],
+        lane: cache.args[1],
+        grid: cache.args[2],
+        numCols: cache.args[3],
+        effects: cache.args[4],
+        maxRemovedBlock: cache.args[5],
+        combo: cache.args[6],
+        maxBlockGenerated: cache.args[7],
+        rGrid: cache.args[8],
+        randomBlock: cache.args[9],
+        minRangeRandomBlock: cache.args[10],
+        maxRangeRandomBlock: cache.args[11],
+        gridMaxBlock: cache.args[12],
+      }));
+      setShootColumns(parsedCache);
+    }
   }
 
   /**
@@ -134,8 +147,8 @@ function Game() {
     if (response) {
       verifyNextBlockCorrectness(response);
 
-      const cachePromise = cacheShoots(response["RGrid"], nextBlock, numOfColumns!);
-      await animateEffect(response['Effects']);
+      const cachePromise = cacheShoots(response.rGrid, nextBlock, numOfColumns!);
+      await animateEffect(response.effects);
 
       evaluateNewMax(response);
       evaluateCombo(response);
@@ -152,9 +165,9 @@ function Game() {
     en el tiro anterior a que este sea usado, por lo que se debe pedir
     un nuevo bloque aleatorio en base a la nueva grilla
     */
-    const newBlockValue = response['Block'];
-    const newRandomBlockLastGrid = response['RGrid'];
-    const maxRemovedBlock = response['MaxRemovedBlock'];
+    const newBlockValue = response.block;
+    const newRandomBlockLastGrid = response.rGrid;
+    const maxRemovedBlock = response.maxRemovedBlock;
     if(maxRemovedBlock >= nextBlock){
       const parsedFinalGrid = JSON.stringify(newRandomBlockLastGrid).replace(/"/g, '');
       const newRandomBlockQuery = `randomBlock(${parsedFinalGrid}, Block, _, _, _)`;
@@ -173,9 +186,9 @@ function Game() {
   }
 
   function evaluateNewMax(response: any){
-    const currentMax = response['GridMax'];
-      const removedBlock = response['MaxRemovedBlock'];
-      const newMaxRange = response['MaxRange'];
+    const currentMax = response.gridMaxBlock;
+      const removedBlock = response.maxRemovedBlock;
+      const newMaxRange = response.maxRangeRandomBlock;
 
       if (currentMax > maxBlock) {
         setMaxBlock(currentMax);
@@ -197,7 +210,7 @@ function Game() {
   function evaluateCombo(response: any){
     // Cuento cuántos efectos contienen información de fusión
     // (cada efecto con args[1].length > 0 indica una fusión)
-    const fusionCount = response['Effects'].filter((eff: EffectTerm) =>
+    const fusionCount = response.effects.filter((eff: EffectTerm) =>
       eff.args[1].length > 0
     ).length;
     // Después de completar todas las animaciones, mostramos notificación si la cantidad de fuciones es mayor igual a 3
@@ -319,9 +332,9 @@ function Game() {
       const response = shootColumns[i];
 
       return {
-        col: response['Lane'],
-        combo: response['Combo'],
-        maxBlock: response['MaxBlock'],
+        col: response.lane,
+        combo: response.combo,
+        maxBlock: response.maxBlockGenerated,
       };
     });
 
