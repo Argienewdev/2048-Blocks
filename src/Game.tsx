@@ -245,10 +245,10 @@ function Game() {
   //----------------------------------------------------------------------------------------------
   //Cuando se actualice la cache de shoots se actualizan las pistas por columna usando esta informacion
   useEffect(() => {
-    if (shootColumns.length > 0 && !gameOver) {
+    if (shootColumns.length > 0 && !gameOver && !waiting) {
       handleHintInternal();
     }
-  }, [shootColumns]);
+  }, [shootColumns, waiting]);
 
   //----------------------------------------------------------------------------------------------
 
