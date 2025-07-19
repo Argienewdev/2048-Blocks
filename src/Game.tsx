@@ -245,7 +245,7 @@ function Game() {
   //----------------------------------------------------------------------------------------------
   //Cuando se actualice la cache de shoots se actualizan las pistas por columna usando esta informacion
   useEffect(() => {
-    if (shootColumns.length > 0) {
+    if (shootColumns.length > 0 && !gameOver) {
       handleHintInternal();
     }
   }, [shootColumns]);
@@ -350,6 +350,8 @@ function Game() {
     setRestartMaxRange(response['MaxRange']);
     setRestartMinRange(response['MinRange']);
     
+    await cacheShoots(response['Grid'], response['Block1'], response['NumOfColumns']);
+
     const gridNumbers = response['Grid'].filter((v: any) => v !== '-').map(Number);
     const initialMax = gridNumbers.length > 0 ? Math.max(...gridNumbers) : 0;
     const maxBlock = initialMax;
@@ -372,6 +374,7 @@ function Game() {
     setMaxBlock(restartMaxBlock);
     setMaxRange(restartMaxRange);
     setMinRange(restartMinRange);
+    handleHintInternal();
   }
 
   //----------------------------------------------------------------------------------------------
