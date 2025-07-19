@@ -1,9 +1,7 @@
 :- module(proylcc, 
 	[  
 		randomBlock/5,
-		shoot/6,
-		shootCache/7,
-		booster_hint/4
+		shootCache/7
 	]).
 :- use_module(library(lists)).
 :- use_module(library(arithmetic)).
@@ -203,52 +201,8 @@ tener toda la informacion necesaria a disposicion
 */
 
 shootCache(Block, Grid, NumCols, Lane, hint(Lane, Combo, MaxBlock), Effects, MaxRemovedBlock) :-
-	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock),	% simulo el shoot (la jugada) en esa columna
-	count_combo(Effects, Combo),									% cuento cuantas fusiones se produjeron
-	max_newblock_from_effects(Effects, MaxBlock).					% encuentro el valor maximo producto de la fusion
-
-%-------------------------------------------------------------------------------------------
-%-------------------------------------------------------------------------------------------
-
-% booster_hint(+Block, +Grid, +NumCols, -Hints)
-%
-% Dado un bloque Block, una grilla Grid y la cantidad de columnas NumCols,
-% devuelve en Hints una lista con un hint por cada columna.
-% Cada hint indica cuantas fusiones (newBlock) se producen
-% si se tirara el bloque en esa columna.
-
-booster_hint(Block, Grid, NumCols, Hints) :-
-    findall(
-	hint(Col, Combo, MaxBlock),							% por cada columna, armo un un par hint(Col, Combo, MaxBlock)
-		(
-		between(1, NumCols, Col),						% asigno los indices de las columnas
-		shoot(Block, Col, Grid, NumCols, Effects, _),	% simulo el shoot (la jugada) en esa columna
-		count_combo(Effects, Combo),					% cuento cuantas fusiones se produjeron
-		max_newblock_from_effects(Effects, MaxBlock)	% encuentro el valor maximo producto de la fusion
-		),
-        Hints											% reunimos todos los hints en una lista
-		).
-
-%-------------------------------------------------------------------------------------------
-
-% count_combo(+Effects, -Count)
-%
-% Dada la lista de Effects (como la que produce shoot/6),
-% cuenta cuántos efectos contienen al menos una fusión newBlock(_).
-% Ese número se devuelve como Count.
-
-count_combo(Effects, Count) :-
-    include(has_newblock, Effects, FusionEffects),	% me quedo solo con los que tienen fusiones
-    length(FusionEffects, Count).					% contamos cuántos son
-
-%-------------------------------------------------------------------------------------------
-
-% has_newblock(+Effect)
-%
-% verdadero si el efecto dado contiene al menos un newBlock(_) en su lista de infos.
-
-has_newblock(effect(_, Infos)) :-
-    member(newBlock(_), Infos). % hay al menos una fusión
+	shoot(Block, Lane, Grid, NumCols, Effects, MaxRemovedBlock, Combo),		% simulo el shoot (la jugada) en esa columna
+	max_newblock_from_effects(Effects, MaxBlock).							% encuentro el valor maximo producto de la fusion
 
 %-------------------------------------------------------------------------------------------
 
@@ -276,17 +230,17 @@ Retorna:
 	El numero maximo eliminado de la grilla
 */
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo) :-
     gridSize(_), !,
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
-shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock) :-
+shoot(Block, Lane, Grid, Col, Effects, MaxRemovedBlock, Combo) :-
     length(Grid, GridSize),
     assert(gridSize(GridSize)),
     block_insert(Block, Lane, Grid, Col, InsertGrid, InsertIndex),
-    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock),
+    fusion_process(InsertGrid, Col, [InsertIndex], FEffects, MaxRemovedBlock, Combo),
     append([effect(InsertGrid, [])], FEffects, Effects).
 
 %-------------------------------------------------------------------------------------------
@@ -296,8 +250,8 @@ fusion_process_aux(+Grid, +Col, +Indexes, -Effects)
 Es un wrapper.
 */
 
-fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock) :-
-	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock).
+fusion_process(Grid, Col, Indexes, Effects, MaxRemovedBlock, Combo) :-
+	fusion_process_aux(Grid, Col, Indexes, Effects, 0, MaxRemovedBlock, Combo).
 /*
 
 %-------------------------------------------------------------------------------------------
@@ -310,32 +264,34 @@ Luego, retorna los efectos pertinentes y el bloque mas grande eliminado.
 */
 
 
-fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock) :-
-	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid),
+fusion_process_aux(Grid, Col, Indexes, Effects, RemovedBlockAcc, MaxRemovedBlock, Combo) :-
+	fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, ComboA),
 	max_grid(Grid, CurrentMax),
 	max_grid(FusionGrid, NewMax),
 	(apply_deletes_and_merges(FusionGrid, Col, CurrentMax, NewMax, PostDeletesMergesEffects, PostDeletesMergesGrid, PostDeletesMergesMovements, RemovedBlock) ->
 
 	append(FusionEffects, PostDeletesMergesEffects, NewEffects),
-	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock),
+	fusion_process_aux(PostDeletesMergesGrid, Col, PostDeletesMergesMovements, NewNewEffects, RemovedBlock, MaxRemovedBlock, ComboB),
+	Combo is ComboA + ComboB,
 	append(NewEffects, NewNewEffects,Effects);
 
+	Combo = ComboA,
 	MaxRemovedBlock = RemovedBlockAcc,
 	Effects = FusionEffects).
 
 %-------------------------------------------------------------------------------------------
 
 /*
-fusion_admin_aux(+Grid, +Col, +Indexes, -Effects, -RGrid)
+fusion_admin_aux(+Grid, +Col, +Indexes, -Effects, -RGrid, -Combo)
 Es un wrapper.
 */
 
-fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid) :-
-	fusion_admin_aux(Grid, Col, Indexes, [], FusionEffects, FusionGrid).
+fusion_admin(Grid, Col, Indexes, FusionEffects, FusionGrid, Combo) :-
+	fusion_admin_aux(Grid, Col, Indexes, [], FusionEffects, FusionGrid, 0, Combo).
 
 %-------------------------------------------------------------------------------------------
 /*
-fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects, -RGrid)
+fusion_admin_aux(+Grid, +Col, +Indexes, +Acc, -Effects, -RGrid, +ComboAcc, -Combo)
 Fusion admin funcionara de la siguiente manera
 	fusion loop: se encarga de llevar a cabo todas las fusiones simultaneas y retorna el ultimo
 	efecto junto con todos los bloques nuevos que se crearon y todos los nuevos indices de bloques
@@ -351,10 +307,16 @@ Fusion admin funcionara de la siguiente manera
 	de bloques que se movieron a la lista de indices a revisar nuevamente y hago el llamado recursivo
 */
 
-fusion_admin_aux(Grid, _Col, [], Acc, Acc, Grid) :- !.
+fusion_admin_aux(Grid, _Col, [], Acc, Acc, Grid, ComboAcc, ComboAcc) :- !.
 
-fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid) :-
+fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid, ComboAcc, Combo) :-
 	fusion_loop(Grid, Col, Indexes, FinalFusionEffect, LastGrid, NewFusionIndexes),
+
+	(length(NewFusionIndexes, NewFusionIndexesLength),
+	NewFusionIndexesLength > 0 ->
+	NewComboAcc is ComboAcc + 1;
+	NewComboAcc is ComboAcc),
+
 	get_columns_to_check_with_adyacent(NewFusionIndexes, Col, ColumnsToCheck),
 	(block_fall(LastGrid, Col, ColumnsToCheck, GravityGrid, NewGravityIndexes) ->
 	
@@ -363,11 +325,11 @@ fusion_admin_aux(Grid, Col, Indexes, Acc, Effects, RGrid) :-
 	
 	append(NewGravityIndexes, NewFusionIndexes, NewIndexes),
 	
-	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects, RGrid);
+	fusion_admin_aux(GravityGrid, Col, NewIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo);
 	
 	append(Acc, FinalFusionEffect, NewAcc),
 	
-	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects, RGrid)), !.
+	fusion_admin_aux(LastGrid, Col, NewFusionIndexes, NewAcc, Effects, RGrid, NewComboAcc, Combo)), !.
 
 %-------------------------------------------------------------------------------------------
 

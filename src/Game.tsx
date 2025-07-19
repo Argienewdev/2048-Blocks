@@ -128,10 +128,8 @@ function Game() {
       return;
     }
 
-    const gridS = JSON.stringify(grid).replace(/"/g, '');
-    const queryS = `shoot(${shootBlock}, ${lane}, ${gridS}, ${numOfColumns}, Effects, MaxRemovedBlock), last(Effects, effect(RGrid,_)), randomBlock(RGrid, Block, MinRange, MaxRange, GridMax)`;
     setWaiting(true);
-    const response = await pengine.query(queryS);
+    const response = shootColumns[lane - 1];
 
     if (response) {
       verifyNextBlockCorrectness(response);
